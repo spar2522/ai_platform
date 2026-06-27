@@ -1,8 +1,11 @@
 [project]
-name = "ai-platform"
+name = "aip-cli"
 version = "0.1.0"
-description = "A modular AI engineering platform."
 requires-python = ">=3.11"
+description = "Aip Cli"
 dependencies = [
     "typer>=0.26.8",
 ]
+
+[project.scripts]
+aip = "aip.cli:app"

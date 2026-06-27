@@ -1,0 +1,5 @@
+from $MODULE_NAME.$MODULE_NAME import $CLASS_NAME
+
+
+def test_import():
+    assert $CLASS_NAME is not None

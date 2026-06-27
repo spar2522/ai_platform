@@ -1,0 +1,9 @@
+# $PACKAGE_NAME
+
+Package description.
+
+## Installation
+
+```bash
+uv add $PACKAGE_NAME
+```
