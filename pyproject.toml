@@ -1,0 +1,5 @@
+[project]
+name = "ai-platform"
+version = "0.1.0"
+description = "A modular AI engineering platform."
+requires-python = ">=3.11"
