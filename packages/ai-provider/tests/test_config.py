@@ -2,7 +2,7 @@ from ai_provider.config import AIProviderConfig
 
 
 def test_defaults():
-
+    """Test that AIProviderConfig uses correct default values when not specified."""
     config = AIProviderConfig(
         provider="ollama",
         model="qwen3",
