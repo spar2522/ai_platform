@@ -1,5 +1,5 @@
 from ai_provider.base_provider import AIProvider
-from ai_provider.config import GenerationConfig
+from ai_provider.generation_options import GenerationOptions
 from ai_provider.models import AIResponse
 
 
@@ -9,7 +9,7 @@ class DummyProvider(AIProvider):
     async def generate(
         self,
         prompt: str,
-        options: GenerationConfig | None = None,
+        options: GenerationOptions | None = None,
     ) -> AIResponse:
         """Generates a dummy AI response.
 
@@ -28,7 +28,7 @@ class DummyProvider(AIProvider):
     async def stream(
         self,
         prompt: str,
-        options: GenerationConfig | None = None,
+        options: GenerationOptions | None = None,
     ):
         """Streams a dummy AI response.
 

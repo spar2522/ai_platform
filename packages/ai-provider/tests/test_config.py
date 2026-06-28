@@ -9,5 +9,5 @@ def test_defaults():
     )
 
     assert config.timeout_seconds == 120
-    assert config.stream is False
+    assert config.generation.stream is False
     assert config.max_retries == 3

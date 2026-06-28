@@ -1,13 +1,9 @@
+from ai_provider.generation_options import GenerationOptions
 from ai_provider.provider_type import Provider
 from pydantic import BaseModel
-from pydantic import ConfigDict
 
 
 class AIProviderConfig(BaseModel):
-
-    model_config = ConfigDict(
-        frozen=True,
-    )
 
     provider: Provider
 
@@ -21,15 +17,4 @@ class AIProviderConfig(BaseModel):
 
     max_retries: int = 3
 
-    stream: bool = False
-
-    temperature: float = 0.7
-
-
-class GenerationConfig(BaseModel):
-
-    model: str | None = None
-
-    stream: bool | None = None
-
-    temperature: float | None = None
+    generation: GenerationOptions = GenerationOptions()

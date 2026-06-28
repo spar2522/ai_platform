@@ -4,6 +4,7 @@ Exports public interfaces, configurations, models, and providers.
 """
 
 # Core classes
+from ai_provider.generation_options import GenerationOptions
 from ai_provider.ai import AI
 from ai_provider.base_provider import AIProvider
 
@@ -13,7 +14,6 @@ from ai_provider.provider_type import Provider
 # Configuration classes
 from ai_provider.config import (
     AIProviderConfig,
-    GenerationConfig,
 )
 
 # Model classes
@@ -27,7 +27,7 @@ __all__ = [
     "AIProvider",
     "Provider",
     "AIProviderConfig",
-    "GenerationConfig",
+    "GenerationOptions",
     "AIResponse",
     "Usage",
 ]

@@ -1,9 +1,9 @@
-from ai_provider.config import GenerationConfig
+from ai_provider.generation_options import GenerationOptions
 
 
 def test_generation_config():
 
-    config = GenerationConfig(
+    config = GenerationOptions(
         temperature=0.2,
     )
 

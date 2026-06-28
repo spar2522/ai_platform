@@ -18,3 +18,9 @@ dev = [
 members = [
     "packages/*",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that require external services",
+]
+addopts = "-ra"
