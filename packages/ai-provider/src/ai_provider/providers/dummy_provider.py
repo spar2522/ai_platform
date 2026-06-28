@@ -15,7 +15,7 @@ class DummyProvider(AIProvider):
 
         Args:
             prompt (str): The input prompt (not used in this dummy implementation).
-            options (GenerationConfig | None): Generation options (not used in this dummy implementation).
+            options (GenerationOptions | None): Generation options (not used in this dummy implementation).
 
         Returns:
             AIResponse: A dummy response with fixed text and model name.
@@ -29,12 +29,12 @@ class DummyProvider(AIProvider):
         self,
         prompt: str,
         options: GenerationOptions | None = None,
-    ):
+    ) -> AsyncGenerator[AIResponse, None]:
         """Streams a dummy AI response.
 
         Args:
             prompt (str): The input prompt (not used in this dummy implementation).
-            options (GenerationConfig | None): Generation options (not used in this dummy implementation).
+            options (GenerationOptions | None): Generation options (not used in this dummy implementation).
 
         Yields:
             AIResponse: A dummy response with fixed text and model name.
