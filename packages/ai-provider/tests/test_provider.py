@@ -4,13 +4,12 @@ from ai_provider.base_provider import AIProvider
 from ai_provider.provider_type import Provider
 
 
-def test_provider_is_abstract():
-
+def test_ai_provider_is_abstract():
+    """Verify that AIProvider cannot be instantiated directly."""
     with pytest.raises(TypeError):
-
         AIProvider()
 
 
-def test_provider_enum():
-
+def test_provider_enum_values():
+    """Ensure that the Provider enum has the correct string value."""
     assert Provider.OLLAMA.value == "ollama"
