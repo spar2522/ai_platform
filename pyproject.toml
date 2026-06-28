@@ -1,8 +1,20 @@
 [project]
 name = "ai-platform"
 version = "0.1.0"
-description = "A modular AI engineering platform."
-requires-python = ">=3.11"
-dependencies = [
-    "typer>=0.26.8",
+description = "AI Platform Workspace"
+requires-python = ">=3.12"
+
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff",
+    "mypy",
+]
+
+[tool.uv.workspace]
+members = [
+    "packages/*",
 ]

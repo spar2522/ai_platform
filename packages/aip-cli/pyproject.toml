@@ -9,3 +9,5 @@ dependencies = [
 
 [project.scripts]
 aip = "aip.cli:app"
+
+[tool.uv.sources]
