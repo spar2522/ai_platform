@@ -7,11 +7,21 @@ class AIProviderFactory:
 
     @staticmethod
     def create(config):
+        """Create an AI provider instance based on the configuration.
 
-        match config.provider:
+        Args:
+            config: Configuration object containing the provider type.
 
-            case Provider.OLLAMA:
-                return DummyProvider()
+        Returns:
+            An instance of the corresponding AI provider.
 
-            case _:
-                raise ValueError(f"Unsupported provider {config.provider}")
+        Raises:
+            ValueError: If the provider type is not supported.
+        """
+        providers = {
+            Provider.OLLAMA: DummyProvider,
+        }
+        provider_class = providers.get(config.provider)
+        if provider_class is None:
+            raise ValueError(f"Unsupported provider {config.provider}")
+        return provider_class()
