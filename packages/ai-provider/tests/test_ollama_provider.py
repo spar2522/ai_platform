@@ -10,9 +10,6 @@ from ai_provider.models import AIResponse
 from ai_provider.provider_type import Provider
 from ai_provider.providers.ollama_provider import OllamaProvider
 
-import httpx
-import pytest
-
 
 async def ollama_running() -> bool:
     try:
@@ -44,23 +41,21 @@ def create_provider(
 
 
 def test_provider_creation():
-
+    """Verify that the OllamaProvider can be instantiated."""
     provider = create_provider()
-
     assert provider is not None
 
 
 def test_ollama_defaults():
-
+    """Verify default configuration values for OllamaProvider."""
     provider = create_provider()
-
     assert provider._model == "qwen3:14b"
     assert provider._base_url == "http://localhost:11434"
     assert provider._timeout_seconds == 120
 
 
 def test_resolve_generation_options():
-
+    """Verify that generation options are resolved correctly."""
     config = AIProviderConfig(
         provider=Provider.OLLAMA,
         model="qwen3:14b",
@@ -82,12 +77,11 @@ def test_resolve_generation_options():
     options = provider._resolve_generation_options(request)
 
     assert options.temperature == 0.2
-
     assert options.stream is False
 
 
 def test_build_payload():
-
+    """Verify that the payload is built correctly with all optional fields."""
     provider = create_provider()
 
     request = GenerationRequest(
@@ -103,24 +97,17 @@ def test_build_payload():
     payload = provider._build_payload(request)
 
     assert payload["model"] == "qwen3:14b"
-
     assert payload["stream"] is False
-
     assert len(payload["messages"]) == 2
-
     assert payload["messages"][0]["role"] == "system"
-
     assert payload["messages"][1]["role"] == "user"
-
     assert payload["options"]["temperature"] == 0.5
-
     assert payload["options"]["num_predict"] == 200
-
     assert payload["options"]["top_p"] == 0.8
 
 
 def test_build_payload_without_optional_fields():
-
+    """Verify that the payload omits optional fields when not provided."""
     provider = create_provider()
 
     request = GenerationRequest(prompt="Hello")
@@ -139,7 +126,7 @@ def test_build_payload_without_optional_fields():
 
 @pytest.mark.asyncio
 async def test_generate_mock():
-
+    """Verify that generate() returns expected results with a mock response."""
     response_body = {
         "model": "qwen3:14b",
         "done_reason": "stop",
@@ -150,14 +137,12 @@ async def test_generate_mock():
     }
 
     def handler(request: httpx.Request):
-
         return httpx.Response(
             status_code=200,
             json=response_body,
         )
 
     transport = httpx.MockTransport(handler)
-
     client = httpx.AsyncClient(
         transport=transport,
         base_url="http://localhost:11434",
@@ -166,17 +151,12 @@ async def test_generate_mock():
     provider = create_provider(client)
 
     response = await provider.generate(
-        GenerationRequest(
-            prompt="Hello",
-        )
+        GenerationRequest(prompt="Hello")
     )
 
     assert isinstance(response, AIResponse)
-
     assert response.text == "Hello there!"
-
     assert response.model == "qwen3:14b"
-
     assert response.finish_reason == "stop"
 
     await provider.close()
@@ -185,7 +165,7 @@ async def test_generate_mock():
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_generate_real():
-
+    """Verify that generate() works with a real Ollama server."""
     if not await ollama_running():
         pytest.skip("""
 Ollama server is not running.
@@ -204,15 +184,11 @@ Then rerun the test using by running 'pytest'
     provider = create_provider()
 
     response = await provider.generate(
-        GenerationRequest(
-            prompt="Reply only with the word hello.",
-        )
+        GenerationRequest(prompt="Reply only with the word hello.")
     )
 
     assert isinstance(response, AIResponse)
-
     assert len(response.text) > 0
-
     assert response.model == "qwen3:14b"
 
     await provider.close()
