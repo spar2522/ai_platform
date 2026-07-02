@@ -13,7 +13,7 @@ class AI:
 
     Examples
     --------
-
+    
     # Local model with all defaults
     ai = AI.local()
 
@@ -94,8 +94,11 @@ class AI:
         async for chunk in self._provider.stream(request):
             yield chunk
 
-        async def close(self):
-            await self._provider.close()
+    async def close(self):
+        """
+        Close the AI provider connection.
+        """
+        await self._provider.close()
 
     @classmethod
     def local(cls, **kwargs):
@@ -133,6 +136,5 @@ class AI:
         except KeyError:
             supported = ", ".join(sorted(providers.keys()))
             raise ValueError(
-                f"Unsupported provider '{provider}'. "
-                f"Supported providers: {supported}"
+                f"Unsupported provider '{provider}'. Supported providers: {supported}"
             )
