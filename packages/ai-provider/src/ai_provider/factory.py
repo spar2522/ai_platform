@@ -7,11 +7,11 @@ from ai_provider.providers.ollama_provider import OllamaProvider
 class AIProviderFactory:
 
     @staticmethod
-    def create(config):
+    def create(config: object) -> object:
         """Create an AI provider instance based on the configuration.
 
         Args:
-            config: Configuration object containing the provider type.
+            config: Configuration object with a 'provider' attribute of type Provider.
 
         Returns:
             An instance of the corresponding AI provider.
@@ -19,11 +19,11 @@ class AIProviderFactory:
         Raises:
             ValueError: If the provider type is not supported.
         """
-        providers = {
+        provider_mapping = {
             Provider.OLLAMA: OllamaProvider,
             Provider.DUMMY: DummyProvider,
         }
-        provider_class = providers.get(config.provider)
+        provider_class = provider_mapping.get(config.provider)
         if provider_class is None:
             raise ValueError(f"Unsupported provider {config.provider}")
         return provider_class(config)
