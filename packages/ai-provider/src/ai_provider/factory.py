@@ -1,6 +1,7 @@
 from ai_provider.provider_type import Provider
 
 from ai_provider.providers.dummy_provider import DummyProvider
+from ai_provider.providers.ollama_provider import OllamaProvider
 
 
 class AIProviderFactory:
@@ -19,9 +20,10 @@ class AIProviderFactory:
             ValueError: If the provider type is not supported.
         """
         providers = {
-            Provider.OLLAMA: DummyProvider,
+            Provider.OLLAMA: OllamaProvider,
+            Provider.DUMMY: DummyProvider,
         }
         provider_class = providers.get(config.provider)
         if provider_class is None:
             raise ValueError(f"Unsupported provider {config.provider}")
-        return provider_class()
+        return provider_class(config)

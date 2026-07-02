@@ -11,3 +11,5 @@ class Provider(StrEnum):
     OPENAI = "openai"
 
     ANTHROPIC = "anthropic"
+
+    DUMMY = "dummy"

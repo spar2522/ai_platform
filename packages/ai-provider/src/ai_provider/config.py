@@ -7,14 +7,14 @@ class AIProviderConfig(BaseModel):
 
     provider: Provider
 
-    model: str
+    model: str | None = None
 
     api_key: str | None = None
 
     base_url: str | None = None
 
-    timeout_seconds: int = 120
+    timeout_seconds: int | None = None
 
-    max_retries: int = 3
+    max_retries: int | None = None
 
-    generation: GenerationOptions = GenerationOptions()
+    generation: GenerationOptions | None = None

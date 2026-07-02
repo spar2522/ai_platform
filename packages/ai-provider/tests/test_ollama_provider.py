@@ -49,7 +49,14 @@ def test_provider_creation():
 
     assert provider is not None
 
-    assert provider._config.model == "qwen3:14b"
+
+def test_ollama_defaults():
+
+    provider = create_provider()
+
+    assert provider._model == "qwen3:14b"
+    assert provider._base_url == "http://localhost:11434"
+    assert provider._timeout_seconds == 120
 
 
 def test_resolve_generation_options():

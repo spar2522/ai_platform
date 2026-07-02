@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from ai_provider.providers.defaults_ollama import (
+    DEFAULT_BASE_URL,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_MODEL,
+    DEFAULT_TIMEOUT_SECONDS,
+)
 import httpx
 
 from ai_provider.base_provider import AIProvider
@@ -26,13 +32,19 @@ class OllamaProvider(AIProvider):
         config: AIProviderConfig,
         client: httpx.AsyncClient | None = None,
     ) -> None:
-
-        self._config = config
+        self._init_defaults(config)
 
         self._client = client or httpx.AsyncClient(
-            base_url=config.base_url or self.DEFAULT_BASE_URL,
-            timeout=config.timeout_seconds,
+            base_url=self._base_url,
+            timeout=self._timeout_seconds,
         )
+
+    def _init_defaults(self, config: AIProviderConfig) -> None:
+        self._model = config.model or DEFAULT_MODEL
+        self._base_url = config.base_url or DEFAULT_BASE_URL
+        self._timeout_seconds = config.timeout_seconds or DEFAULT_TIMEOUT_SECONDS
+        self._max_retries = config.max_retries or DEFAULT_MAX_RETRIES
+        self._generation_defaults = config.generation or GenerationOptions()
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -47,7 +59,7 @@ class OllamaProvider(AIProvider):
         Request values always win.
         """
 
-        return self._config.generation.model_copy(
+        return self._generation_defaults.model_copy(
             update=(
                 request.options.model_dump(exclude_none=True) if request.options else {}
             )
@@ -78,7 +90,7 @@ class OllamaProvider(AIProvider):
         )
 
         payload: dict[str, Any] = {
-            "model": self._config.model,
+            "model": self._model,
             "messages": messages,
             "stream": options.stream,
             "options": {},
@@ -136,7 +148,7 @@ class OllamaProvider(AIProvider):
 
         return AIResponse(
             text=message.get("content", ""),
-            model=body.get("model", self._config.model),
+            model=body.get("model", self._model),
             finish_reason=body.get("done_reason"),
         )
 

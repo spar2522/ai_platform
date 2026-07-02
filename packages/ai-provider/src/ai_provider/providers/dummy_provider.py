@@ -1,10 +1,17 @@
 from ai_provider.base_provider import AIProvider
+from ai_provider.config import AIProviderConfig
 from ai_provider.generation_options import GenerationOptions
 from ai_provider.models import AIResponse
 
 
 class DummyProvider(AIProvider):
     """A dummy implementation of an AI provider for testing purposes."""
+
+    def __init__(
+        self,
+        config: AIProviderConfig,
+    ):
+        pass
 
     async def generate(
         self,
