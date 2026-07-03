@@ -6,26 +6,26 @@ from ai_provider.providers.ollama_provider import OllamaProvider
 
 
 class AIProviderFactory:
+    PROVIDERS = {
+        Provider.OLLAMA: OllamaProvider,
+        Provider.DUMMY: DummyProvider,
+        Provider.GEMINI: GeminiProvider,
+    }
 
     @staticmethod
     def create(config):
         """Create an AI provider instance based on the configuration.
 
         Args:
-            config: Configuration object containing the provider type.
+            config: An object with a 'provider' attribute specifying the type of AI provider to create.
 
         Returns:
             An instance of the corresponding AI provider.
 
         Raises:
-            ValueError: If the provider type is not supported.
+            ValueError: If the provider type is not supported (i.e., not in the PROVIDERS dictionary).
         """
-        providers = {
-            Provider.OLLAMA: OllamaProvider,
-            Provider.DUMMY: DummyProvider,
-            Provider.GEMINI: GeminiProvider,
-        }
-        provider_class = providers.get(config.provider)
+        provider_class = AIProviderFactory.PROVIDERS.get(config.provider)
         if provider_class is None:
             raise ValueError(f"Unsupported provider {config.provider}")
         return provider_class(config)
