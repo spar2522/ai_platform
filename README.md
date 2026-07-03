@@ -21,3 +21,21 @@ A modular Python platform for building production-ready AI applications.
 - Framework Agnostic
 - Production Ready
 - Small Focused Libraries
+
+## Setup
+
+uv sync --all-packages
+
+## Run tests
+
+pytest
+
+## Add a dependency to a package
+
+cd packages/ai-provider
+uv add httpx
+
+## Sync workspace
+
+cd ../../
+uv sync --all-packages

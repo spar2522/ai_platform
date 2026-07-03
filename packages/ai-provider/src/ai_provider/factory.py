@@ -1,6 +1,7 @@
 from ai_provider.provider_type import Provider
 
 from ai_provider.providers.dummy_provider import DummyProvider
+from ai_provider.providers.gemini_provider import GeminiProvider
 from ai_provider.providers.ollama_provider import OllamaProvider
 
 
@@ -22,6 +23,7 @@ class AIProviderFactory:
         providers = {
             Provider.OLLAMA: OllamaProvider,
             Provider.DUMMY: DummyProvider,
+            Provider.GEMINI: GeminiProvider,
         }
         provider_class = providers.get(config.provider)
         if provider_class is None:
