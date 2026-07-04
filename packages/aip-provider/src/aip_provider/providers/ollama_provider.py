@@ -25,135 +25,128 @@ class OllamaProvider(AIProvider):
     SDK models into Ollama's HTTP API.
     """
 
-    DEFAULT_BASE_URL = "http://localhost:11434"
+    DEFAULT_BASE_URL = "http://localhost:11443"
 
     def __init__(
         self,
         config: AIProviderConfig,
-        client: httpx.AsyncClient | None = None,
     ) -> None:
-        self._init_defaults(config)
+        """
+        Initialize OllamaProvider.
 
-        self._client = client or httpx.AsyncClient(
-            base_url=self._base_url,
-            timeout=self._timeout_seconds,
-        )
+        Args:
+            config: Configuration object containing model and API settings.
+        """
+        self._config = config
+        self._client = config.client or httpx.AsyncClient(base_url=self.DEFAULT_BASE_URL)
 
-    def _init_defaults(self, config: AIProviderConfig) -> None:
-        self._model = config.model or DEFAULT_MODEL
-        self._base_url = config.base_url or DEFAULT_BASE_URL
-        self._timeout_seconds = config.timeout_seconds or DEFAULT_TIMEOUT_SECONDS
-        self._max_retries = config.max_retries or DEFAULT_MAX_RETRIES
-        self._generation_defaults = config.generation or GenerationOptions()
+    def _init_defaults(self) -> None:
+        """Initialize default configuration values."""
+        self._model = self._config.model or DEFAULT_MODEL
+        self._timeout = self._config.timeout or DEFAULT_TIMEOUT_SECONDS
+        self._max_retries = self._config.max_retries or DEFAULT_MAX_RETRIES
 
-    async def close(self) -> None:
-        await self._client.aclose()
-
-    def _resolve_generation_options(
-        self,
-        request: GenerationRequest,
+    async def _resolve_generation_options(
+        self, options: GenerationOptions
     ) -> GenerationOptions:
         """
-        Merge provider defaults with request overrides.
+        Merge generation options with defaults.
 
-        Request values always win.
+        Args:
+            options: User-provided generation options.
+
+        Returns:
+            Merged generation options.
         """
+        return options or GenerationOptions()
 
-        return self._generation_defaults.model_copy(
-            update=(
-                request.options.model_dump(exclude_none=True) if request.options else {}
-            )
-        )
-
-    def _build_payload(
-        self,
-        request: GenerationRequest,
+    async def _build_payload(
+        self, options: GenerationOptions
     ) -> dict[str, Any]:
+        """
+        Construct request payload for Ollama API.
 
-        options = self._resolve_generation_options(request)
+        Args:
+            options: Generation options.
 
-        messages: list[dict[str, str]] = []
-
-        if request.system_prompt:
-            messages.append(
-                {
-                    "role": "system",
-                    "content": request.system_prompt,
-                }
-            )
-
-        messages.append(
-            {
-                "role": "user",
-                "content": request.prompt,
-            }
-        )
-
-        payload: dict[str, Any] = {
+        Returns:
+            Dictionary containing request payload.
+        """
+        payload = {
             "model": self._model,
-            "messages": messages,
-            "stream": options.stream,
-            "options": {},
+            "stream": options.stream if hasattr(options, "stream") else False,
         }
 
         if options.temperature is not None:
-            payload["options"]["temperature"] = options.temperature
-
+            payload["temperature"] = options.temperature
         if options.top_p is not None:
-            payload["options"]["top_p"] = options.top_p
-
+            payload["top_p"] = options.top_p
         if options.seed is not None:
-            payload["options"]["seed"] = options.seed
-
+            payload["seed"] = options.seed
         if options.max_tokens is not None:
-            payload["options"]["num_predict"] = options.max_tokens
-
+            payload["num_predict"] = options.max_tokens
         if options.stop_sequences:
-            payload["options"]["stop"] = options.stop_sequences
-
-        if not payload["options"]:
-            payload.pop("options")
+            payload["stop"] = options.stop_sequences
 
         return payload
 
-    async def _post(
-        self,
-        payload: dict[str, Any],
-    ) -> httpx.Response:
+    async def _post(self, payload: dict[str, Any]) -> httpx.Response:
+        """
+        Send POST request to Ollama API.
 
-        response = await self._client.post(
-            "/api/chat",
-            json=payload,
-        )
+        Args:
+            payload: Request payload.
 
-        response.raise_for_status()
-
-        return response
+        Returns:
+            HTTP response from server.
+        """
+        try:
+            response = await self._client.post("/api/generate", json=payload)
+            response.raise_for_status()
+            return response
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"API request failed: {e}") from e
 
     async def generate(
-        self,
-        request: GenerationRequest,
+        self, request: GenerationRequest
     ) -> AIResponse:
         """
-        Generate a response from Ollama.
-        """
+        Generate response from Ollama model.
 
-        payload = self._build_payload(request)
+        Args:
+            request: Generation request containing prompt and options.
+
+        Returns:
+            AI response containing generated text and metadata.
+        """
+        options = await self._resolve_generation_options(request.options)
+        payload = await self._build_payload(options)
+        payload["prompt"] = request.prompt
 
         response = await self._post(payload)
-
         body = response.json()
 
-        message = body.get("message", {})
+        message = body.get("response", "")
+        finish_reason = body.get("done_reason", "unknown")
 
         return AIResponse(
-            text=message.get("content", ""),
-            model=body.get("model", self._model),
-            finish_reason=body.get("done_reason"),
+            text=message,
+            model=self._model,
+            finish_reason=finish_reason,
         )
 
     async def stream(
-        self,
-        request: GenerationRequest,
-    ):
-        raise NotImplementedError("Streaming support is coming in a future release.")
+        self, request: GenerationRequest
+    ) -> None:
+        """
+        Stream response from Ollama model.
+
+        Note: Streaming functionality is not yet implemented.
+
+        Args:
+            request: Generation request containing prompt and options.
+
+        Raises:
+            NotImplementedError: Streaming is not currently supported.
+        """
+        raise NotImplementedError("Streaming support is not yet implemented.")
