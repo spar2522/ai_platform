@@ -19,7 +19,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Set Up Python
+      - name: Set Up Python 3.12
         run: uv python install 3.12
 
       - name: Install Workspace Dependencies
