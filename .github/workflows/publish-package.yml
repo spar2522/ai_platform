@@ -20,6 +20,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      ####################################################################
+      # Phase 1 - Setup
+      ####################################################################
+
       - name: Checkout Validated Commit
         uses: actions/checkout@v4
         with:
@@ -31,9 +35,9 @@ jobs:
       - name: Install Workspace Dependencies
         run: uv sync --all-packages
 
-      ###########################################################
-      # Phase 1 - Is this a release?
-      ###########################################################
+      ####################################################################
+      # Phase 2 - Determine Release Intent
+      ####################################################################
 
       - name: Check Release Commit
         id: release
@@ -45,28 +49,27 @@ jobs:
           echo "$COMMIT_MESSAGE"
 
           if [[ "$COMMIT_MESSAGE" =~ (^|[[:space:]])#release$ ]]; then
-            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "Proceeding to next step for release" >> "$GITHUB_OUTPUT"
           else
-            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "NO RELEASE NEEDED" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Skip (Not a Release)
         if: steps.release.outputs.release != 'true'
-        run: |
-          echo "No #release marker found."
-          exit 0
+        run: echo "No #release marker found."
 
-      ###########################################################
-      # Phase 2 - Detect changed packages
-      ###########################################################
+      ####################################################################
+      # Phase 3 - Detect Changed Packages
+      ####################################################################
 
       - name: Detect Changed Packages
         id: packages
+        if: steps.release.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          BEFORE="${{ github.event.workflow_run.head_commit.id }}^"
+          BEFORE="${{ github.event.workflow_run.head_sha }}^"
           AFTER="${{ github.event.workflow_run.head_sha }}"
 
           echo "Comparing:"
@@ -97,17 +100,20 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Skip (No Packages Changed)
-        if: steps.packages.outputs.packages == ''
-        run: |
-          echo "Nothing to publish."
-          exit 0
+      - name: Skip (No Package Changes)
+        if: >
+          steps.release.outputs.release == 'true' &&
+          steps.packages.outputs.packages == ''
+        run: echo "No package changes detected."
 
-      ###########################################################
-      # Phase 3 - Build & Publish
-      ###########################################################
+      ####################################################################
+      # Phase 4 - Publish Packages
+      ####################################################################
 
       - name: Publish Packages
+        if: >
+          steps.release.outputs.release == 'true' &&
+          steps.packages.outputs.packages != ''
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           UV_PUBLISH_URL: https://upload.pypi.pkg.github.com/${{ github.repository_owner }}
@@ -118,9 +124,9 @@ jobs:
             [ -z "$PACKAGE" ] && continue
 
             echo ""
-            echo "=================================="
+            echo "======================================="
             echo "Publishing $PACKAGE"
-            echo "=================================="
+            echo "======================================="
 
             cd packages/$PACKAGE
 
