@@ -2,10 +2,30 @@
 
 $DESCRIPTION
 
+## Description
+
+A brief overview of the package's purpose and functionality.
+
 ## Installation
 
 ```bash
 uv sync
+```
 
-## Running Tests
-uv run pytest / pytest
+## Usage
+
+Example usage instructions or code snippets.
+
+## Testing
+
+```bash
+uv run pytest
+```
+
+## Contributing
+
+Guidelines for contributing to the package.
+
+## License
+
+Package licensing information.
