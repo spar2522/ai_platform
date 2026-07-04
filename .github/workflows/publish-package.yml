@@ -20,10 +20,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      ####################################################################
-      # Phase 1 - Setup
-      ####################################################################
-
+      ## Phase 1 - Setup
       - name: Checkout Validated Commit
         uses: actions/checkout@v4
         with:
@@ -35,10 +32,7 @@ jobs:
       - name: Install Workspace Dependencies
         run: uv sync --all-packages
 
-      ####################################################################
-      # Phase 2 - Determine Release Intent
-      ####################################################################
-
+      ## Phase 2 - Determine Release Intent
       - name: Check Release Commit
         id: release
         shell: bash
@@ -54,14 +48,11 @@ jobs:
             echo "release=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Skip (Not a Release)
+      - name: Skip if Not a Release
         if: steps.release.outputs.release != 'true'
-        run: echo "No '#release' marker found hence skipping release"   
+        run: echo "No '#release' marker found - skipping release"
 
-      ####################################################################
-      # Phase 3 - Detect Changed Packages
-      ####################################################################
-
+      ## Phase 3 - Detect Changed Packages
       - name: Detect Changed Packages
         id: packages
         if: steps.release.outputs.release == 'true'
@@ -100,16 +91,13 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Skip (No Package Changes)
+      - name: Skip if No Packages Changed
         if: >
           steps.release.outputs.release == 'true' &&
           steps.packages.outputs.packages == ''
         run: echo "No packages found to publish"
 
-      ####################################################################
-      # Phase 4 - Publish Packages
-      ####################################################################
-
+      ## Phase 4 - Publish Packages
       - name: Publish Packages
         if: >
           steps.release.outputs.release == 'true' &&
