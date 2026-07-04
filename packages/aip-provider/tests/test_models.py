@@ -1,5 +1,5 @@
-from ai_provider.models import AIResponse
-from ai_provider.models import Usage
+from aip_provider.models import AIResponse
+from aip_provider.models import Usage
 
 
 def test_ai_response_initialization():
@@ -21,4 +21,6 @@ def test_usage_initialization():
         total_tokens=30,
     )
 
+    assert usage_instance.prompt_tokens == 10
+    assert usage_instance.completion_tokens == 20
     assert usage_instance.total_tokens == 30
