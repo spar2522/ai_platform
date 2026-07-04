@@ -12,6 +12,8 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "ruff",
     "mypy",
+    "build>=1.2.2",
+    "twine>=6.1.0",
 ]
 
 [tool.uv.workspace]

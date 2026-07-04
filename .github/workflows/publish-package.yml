@@ -1,0 +1,92 @@
+name: Publish Package
+
+on:
+  workflow_run:
+    workflows: ["Validate"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  publish:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Validated Commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Workspace Dependencies
+        run: uv sync --all-packages
+
+      - name: Check Release Commit
+        id: release
+        shell: bash
+        run: |
+          COMMIT_MESSAGE="$(git log -1 --pretty=%B)"
+
+          echo "Commit:"
+          echo "$COMMIT_MESSAGE"
+
+          if [[ "$COMMIT_MESSAGE" =~ (^|[[:space:]])#release$ ]]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop if not a release
+        if: steps.release.outputs.release != 'true'
+        run: |
+          echo "No #release marker found."
+          exit 0
+
+      - name: Detect Changed Package
+        id: package
+        shell: bash
+        run: |
+          PACKAGES=$(git diff --name-only HEAD~1 HEAD \
+            | grep '^packages/' \
+            | cut -d/ -f2 \
+            | sort -u)
+
+          COUNT=$(echo "$PACKAGES" | wc -l | tr -d ' ')
+
+          if [ "$COUNT" -ne 1 ]; then
+            echo "Expected exactly one changed package."
+            echo "Changed packages:"
+            echo "$PACKAGES"
+            exit 1
+          fi
+
+          PACKAGE="$PACKAGES"
+
+          echo "Detected package: $PACKAGE"
+
+          echo "package=$PACKAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Build Package
+        shell: bash
+        run: |
+          cd packages/${{ steps.package.outputs.package }}
+          uv build
+
+      - name: Publish Package
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UV_PUBLISH_URL: https://upload.pypi.pkg.github.com/${{ github.repository_owner }}
+        shell: bash
+        run: |
+          cd packages/${{ steps.package.outputs.package }}
+          uv publish
