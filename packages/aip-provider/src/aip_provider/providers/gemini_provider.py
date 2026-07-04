@@ -23,7 +23,15 @@ class GeminiProvider(AIProvider):
         self,
         config: AIProviderConfig,
     ) -> None:
+        """
+        Initialize the GeminiProvider with the given configuration.
 
+        Args:
+            config: Configuration object containing API key, model, and generation options.
+
+        Raises:
+            ValueError: If the API key is not provided.
+        """
         if config.api_key is None:
             raise ValueError("Gemini requires an API key.")
 
@@ -35,13 +43,24 @@ class GeminiProvider(AIProvider):
         )
 
     async def close(self) -> None:
+        """
+        Close the client connection asynchronously.
+        """
         await self._client.aio.aclose()
 
     def _resolve_generation_options(
         self,
         request: GenerationRequest,
     ) -> GenerationOptions:
+        """
+        Merge request-specific generation options with the default options.
 
+        Args:
+            request: The generation request containing optional parameters.
+
+        Returns:
+            Merged generation options.
+        """
         return self._generation_defaults.model_copy(
             update=(
                 request.options.model_dump(exclude_none=True) if request.options else {}
@@ -52,7 +71,15 @@ class GeminiProvider(AIProvider):
         self,
         request: GenerationRequest,
     ) -> types.GenerateContentConfig:
+        """
+        Construct the configuration object for the Gemini API.
 
+        Args:
+            request: The generation request containing prompt and system instructions.
+
+        Returns:
+            Configuration object for the Gemini API.
+        """
         options = self._resolve_generation_options(request)
 
         return types.GenerateContentConfig(
@@ -68,7 +95,15 @@ class GeminiProvider(AIProvider):
         self,
         request: GenerationRequest,
     ) -> AIResponse:
+        """
+        Generate text based on the given request.
 
+        Args:
+            request: The generation request containing prompt and options.
+
+        Returns:
+            AIResponse object containing the generated text.
+        """
         response = await self._client.aio.models.generate_content(
             model=self._model,
             contents=request.prompt,
@@ -86,4 +121,10 @@ class GeminiProvider(AIProvider):
         self,
         request: GenerationRequest,
     ):
+        """
+        Stream generation results (not implemented yet).
+
+        Raises:
+            NotImplementedError: Streaming is not currently supported.
+        """
         raise NotImplementedError("Streaming support is coming in a future release.")
