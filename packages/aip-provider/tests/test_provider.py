@@ -10,6 +10,6 @@ def test_aip_provider_is_abstract():
         AIProvider()
 
 
-def test_aip_provider_enum_values():
+def test_provider_enum_values():
     """Ensure that the Provider enum has the correct string value."""
     assert Provider.OLLAMA.value == "ollama"

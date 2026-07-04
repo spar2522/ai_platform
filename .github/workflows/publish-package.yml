@@ -107,7 +107,7 @@ jobs:
         run: echo "No packages found to publish"
 
       ####################################################################
-      # Phase 4 - Publish Packages
+      # Phase 4 - Build & Publish
       ####################################################################
 
       - name: Publish Packages
@@ -128,11 +128,16 @@ jobs:
             echo "Publishing $PACKAGE"
             echo "======================================="
 
-            cd packages/$PACKAGE
+            # Clean previous build artifacts
+            rm -rf dist
 
-            uv build
-            uv publish
+            # Build only this package
+            uv build --package "$PACKAGE"
 
-            cd ../..
+            echo "Artifacts:"
+            ls -l dist
+
+            # Publish only the artifacts we just built
+            uv publish dist/*
 
           done <<< "${{ steps.packages.outputs.packages }}"
