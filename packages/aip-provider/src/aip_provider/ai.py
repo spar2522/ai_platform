@@ -9,7 +9,7 @@ from aip_provider.provider_type import Provider
 
 class AI:
     """
-    Public entry point for the AI SDK..
+    Public entry point for the AI SDK.
 
     Examples
     --------
@@ -83,6 +83,8 @@ class AI:
     ):
         """
         Stream a response from the configured AI provider.
+
+        This method is an asynchronous generator that yields response chunks.
         """
 
         request = GenerationRequest(
@@ -94,8 +96,11 @@ class AI:
         async for chunk in self._provider.stream(request):
             yield chunk
 
-        async def close(self):
-            await self._provider.close()
+    async def close(self):
+        """
+        Close the AI provider to release resources.
+        """
+        await self._provider.close()
 
     @classmethod
     def local(cls, **kwargs):
