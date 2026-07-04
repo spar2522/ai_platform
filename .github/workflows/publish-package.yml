@@ -24,7 +24,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 2
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -32,13 +31,17 @@ jobs:
       - name: Install Workspace Dependencies
         run: uv sync --all-packages
 
+      ###########################################################
+      # Phase 1 - Is this a release?
+      ###########################################################
+
       - name: Check Release Commit
         id: release
         shell: bash
         run: |
           COMMIT_MESSAGE="$(git log -1 --pretty=%B)"
 
-          echo "Commit:"
+          echo "Commit message:"
           echo "$COMMIT_MESSAGE"
 
           if [[ "$COMMIT_MESSAGE" =~ (^|[[:space:]])#release$ ]]; then
@@ -47,49 +50,83 @@ jobs:
             echo "release=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Stop if not a release
+      - name: Skip (Not a Release)
         if: steps.release.outputs.release != 'true'
         run: |
           echo "No #release marker found."
           exit 0
 
-      - name: Detect Changed Package
-        id: package
+      ###########################################################
+      # Phase 2 - Detect changed packages
+      ###########################################################
+
+      - name: Detect Changed Packages
+        id: packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-            echo "Changed files:"
-            git diff --name-only HEAD~1 HEAD || true
+          BEFORE="${{ github.event.workflow_run.head_commit.id }}^"
+          AFTER="${{ github.event.workflow_run.head_sha }}"
 
-            PACKAGES=$(git diff --name-only HEAD~1 HEAD \
+          echo "Comparing:"
+          echo "$BEFORE"
+          echo "$AFTER"
+
+          PACKAGES=$(
+            gh api \
+              repos/${{ github.repository }}/compare/$BEFORE...$AFTER \
+              --jq '.files[].filename' \
             | grep '^packages/' \
             | cut -d/ -f2 \
-            | sort -u || true)
+            | sort -u || true
+          )
 
-            echo "Detected packages:"
+          if [ -z "$PACKAGES" ]; then
+            echo "No package changes detected."
+            echo "packages=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Packages detected:"
+          echo "$PACKAGES"
+
+          {
+            echo "packages<<EOF"
             echo "$PACKAGES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
-            COUNT=$(echo "$PACKAGES" | sed '/^$/d' | wc -l | tr -d ' ')
-
-            echo "Package count: $COUNT"
-
-            if [ "$COUNT" -ne 1 ]; then
-            echo "Expected exactly one changed package."
-            exit 1
-            fi
-
-            echo "package=$PACKAGES" >> "$GITHUB_OUTPUT"
-
-      - name: Build Package
-        shell: bash
+      - name: Skip (No Packages Changed)
+        if: steps.packages.outputs.packages == ''
         run: |
-          cd packages/${{ steps.package.outputs.package }}
-          uv build
+          echo "Nothing to publish."
+          exit 0
 
-      - name: Publish Package
+      ###########################################################
+      # Phase 3 - Build & Publish
+      ###########################################################
+
+      - name: Publish Packages
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           UV_PUBLISH_URL: https://upload.pypi.pkg.github.com/${{ github.repository_owner }}
         shell: bash
         run: |
-          cd packages/${{ steps.package.outputs.package }}
-          uv publish
+          while read PACKAGE; do
+
+            [ -z "$PACKAGE" ] && continue
+
+            echo ""
+            echo "=================================="
+            echo "Publishing $PACKAGE"
+            echo "=================================="
+
+            cd packages/$PACKAGE
+
+            uv build
+            uv publish
+
+            cd ../..
+
+          done <<< "${{ steps.packages.outputs.packages }}"
