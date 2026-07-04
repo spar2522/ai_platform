@@ -1,6 +1,5 @@
 from pathlib import Path
 from string import Template
-import subprocess
 
 
 class PackageGenerator:
@@ -12,28 +11,23 @@ class PackageGenerator:
         self,
         package_name: str,
     ) -> None:
+        """Creates a new AI Platform package with the specified name.
 
+        Args:
+            package_name: The name of the package to create.
+
+        Raises:
+            ValueError: If a package with the same name already exists.
+        """
         root = Path("packages") / package_name
 
         if root.exists():
             raise ValueError(f"Package '{package_name}' already exists.")
 
         module_name = package_name.replace("-", "_")
-
         class_name = "".join(word.capitalize() for word in module_name.split("_"))
 
-        directories = [
-            root,
-            root / "src" / module_name,
-            root / "tests",
-            root / "examples",
-        ]
-
-        for directory in directories:
-            directory.mkdir(
-                parents=True,
-                exist_ok=True,
-            )
+        self._create_directories(root, module_name)
 
         self._copy_template(
             "README.md.template",
@@ -71,6 +65,18 @@ class PackageGenerator:
 
         print(f"✅ Created package '{package_name}'")
 
+    def _create_directories(self, root: Path, module_name: str) -> None:
+        """Creates the directory structure for a new package."""
+        directories = [
+            root,
+            root / "src" / module_name,
+            root / "tests",
+            root / "examples",
+        ]
+
+        for directory in directories:
+            directory.mkdir(parents=True, exist_ok=True)
+
     def _copy_template(
         self,
         template_name: str,
@@ -79,7 +85,15 @@ class PackageGenerator:
         module_name: str,
         class_name: str,
     ) -> None:
+        """Copies a template file, substitutes variables, and writes to destination.
 
+        Args:
+            template_name: Name of the template file to copy.
+            destination: Path where the generated file will be written.
+            package_name: Name of the package being generated.
+            module_name: Name of the module (snake_case).
+            class_name: Name of the main class (PascalCase).
+        """
         template_text = (self.TEMPLATE_DIR / template_name).read_text(
             encoding="utf-8",
         )
