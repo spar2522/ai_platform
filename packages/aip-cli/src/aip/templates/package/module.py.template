@@ -1,7 +1,12 @@
-class $CLASS_NAME:
-
 """
 $DESCRIPTION
 """
 
 __version__ = "0.1.0"
+
+
+class $CLASS_NAME:
+    """
+    $DESCRIPTION
+    """
+    pass
