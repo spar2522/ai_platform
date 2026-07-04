@@ -3,15 +3,12 @@ import json
 import httpx
 import pytest
 
-from ai_provider.config import AIProviderConfig
-from ai_provider.generation_options import GenerationOptions
-from ai_provider.generation_request import GenerationRequest
-from ai_provider.models import AIResponse
-from ai_provider.provider_type import Provider
-from ai_provider.providers.ollama_provider import OllamaProvider
-
-import httpx
-import pytest
+from aip_provider.config import AIProviderConfig
+from aip_provider.generation_options import GenerationOptions
+from aip_provider.generation_request import GenerationRequest
+from aip_provider.models import AIResponse
+from aip_provider.provider_type import Provider
+from aip_provider.providers.ollama_provider import OllamaProvider
 
 
 async def ollama_running() -> bool:
@@ -198,8 +195,7 @@ Verify:
 
     curl http://localhost:11434/api/tags
 
-Then rerun the test using by running 'pytest'
-
+Then rerun the test by running 'pytest'
 """)
     provider = create_provider()
 
