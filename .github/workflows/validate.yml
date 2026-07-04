@@ -19,11 +19,20 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Set Up Python
-        run: uv python install 3.12
+      - name: Environment Setup
+        shell: bash
+        run: |
+          echo "::group::🛠️ Environment Setup"
 
-      - name: Install Workspace Dependencies
-        run: uv sync --all-packages
+          uv sync --all-packages
+
+          echo "::endgroup::"
 
       - name: Run Tests
-        run: uv run pytest
+        shell: bash
+        run: |
+          echo "::group::🧪 Running Test Suite"
+
+          uv run pytest
+
+          echo "::endgroup::"
