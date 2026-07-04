@@ -1,11 +1,11 @@
-from ai_provider import (
+from aip_provider import (
     AI,
     AIProvider,
     AIProviderConfig,
     AIResponse,
     Usage,
 )
-from ai_provider.generation_options import GenerationOptions
+from aip_provider.generation_options import GenerationOptions
 
 
 def test_public_api_exports_are_correct():

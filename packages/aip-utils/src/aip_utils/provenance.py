@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from ai_utils.source_location import SourceLocation
+from aip_utils.source_location import SourceLocation
 
 
 @dataclass(frozen=True, slots=True)

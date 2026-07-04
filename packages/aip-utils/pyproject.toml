@@ -7,7 +7,7 @@ name = "aip-utils"
 version = "0.1.0"
 description = "aip-utils is a package for the AI Platform."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = "==3.12.*"
 
 dependencies = []
 

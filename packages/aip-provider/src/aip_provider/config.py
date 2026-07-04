@@ -1,5 +1,5 @@
-from ai_provider.generation_options import GenerationOptions
-from ai_provider.provider_type import Provider
+from aip_provider.generation_options import GenerationOptions
+from aip_provider.provider_type import Provider
 from pydantic import BaseModel
 
 

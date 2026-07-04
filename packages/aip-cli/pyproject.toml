@@ -7,7 +7,7 @@ name = "aip-cli"
 version = "0.1.0"
 description = "CLI for managing AI Platform packages and projects"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = "==3.12.*"
 classifiers = [
     "Programming Language :: Python :: 3",
 ]

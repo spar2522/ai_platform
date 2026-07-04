@@ -1,7 +1,7 @@
-from ai_provider.base_provider import AIProvider
-from ai_provider.config import AIProviderConfig
-from ai_provider.generation_options import GenerationOptions
-from ai_provider.models import AIResponse
+from aip_provider.base_provider import AIProvider
+from aip_provider.config import AIProviderConfig
+from aip_provider.generation_options import GenerationOptions
+from aip_provider.models import AIResponse
 
 
 class DummyProvider(AIProvider):

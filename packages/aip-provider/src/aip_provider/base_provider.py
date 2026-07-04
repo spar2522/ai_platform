@@ -2,8 +2,8 @@ from abc import ABC
 from abc import abstractmethod
 
 
-from ai_provider.generation_request import GenerationRequest
-from ai_provider.models import AIResponse
+from aip_provider.generation_request import GenerationRequest
+from aip_provider.models import AIResponse
 
 
 class AIProvider(ABC):

@@ -1,8 +1,8 @@
-from ai_provider.provider_type import Provider
+from aip_provider.provider_type import Provider
 
-from ai_provider.providers.dummy_provider import DummyProvider
-from ai_provider.providers.gemini_provider import GeminiProvider
-from ai_provider.providers.ollama_provider import OllamaProvider
+from aip_provider.providers.dummy_provider import DummyProvider
+from aip_provider.providers.gemini_provider import GeminiProvider
+from aip_provider.providers.ollama_provider import OllamaProvider
 
 
 class AIProviderFactory:

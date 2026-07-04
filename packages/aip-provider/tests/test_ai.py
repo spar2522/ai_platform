@@ -1,6 +1,6 @@
 import pytest
 
-from ai_provider import AI
+from aip_provider import AI
 
 
 def test_local_ai_creation():

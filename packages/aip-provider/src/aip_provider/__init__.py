@@ -1,23 +1,23 @@
-"""Package initialization for ai_provider.
+"""Package initialization for aip_provider.
 
 Exports public interfaces, configurations, models, and providers.
 """
 
 # Core classes
-from ai_provider.generation_options import GenerationOptions
-from ai_provider.ai import AI
-from ai_provider.base_provider import AIProvider
+from aip_provider.generation_options import GenerationOptions
+from aip_provider.ai import AI
+from aip_provider.base_provider import AIProvider
 
 # Provider types
-from ai_provider.provider_type import Provider
+from aip_provider.provider_type import Provider
 
 # Configuration classes
-from ai_provider.config import (
+from aip_provider.config import (
     AIProviderConfig,
 )
 
 # Model classes
-from ai_provider.models import (
+from aip_provider.models import (
     AIResponse,
     Usage,
 )

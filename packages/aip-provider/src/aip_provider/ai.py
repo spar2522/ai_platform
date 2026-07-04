@@ -1,10 +1,10 @@
-from ai_provider.base_provider import AIProvider
-from ai_provider.config import AIProviderConfig
-from ai_provider.factory import AIProviderFactory
-from ai_provider.generation_options import GenerationOptions
-from ai_provider.generation_request import GenerationRequest
-from ai_provider.models import AIResponse
-from ai_provider.provider_type import Provider
+from aip_provider.base_provider import AIProvider
+from aip_provider.config import AIProviderConfig
+from aip_provider.factory import AIProviderFactory
+from aip_provider.generation_options import GenerationOptions
+from aip_provider.generation_request import GenerationRequest
+from aip_provider.models import AIResponse
+from aip_provider.provider_type import Provider
 
 
 class AI:

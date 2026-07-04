@@ -1,4 +1,4 @@
-from ai_provider.generation_options import GenerationOptions
+from aip_provider.generation_options import GenerationOptions
 
 
 def test_generation_config():

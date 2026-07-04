@@ -1,4 +1,4 @@
-from ai_utils.provenance import Provenance
+from aip_utils.provenance import Provenance
 
 
 def test_import():

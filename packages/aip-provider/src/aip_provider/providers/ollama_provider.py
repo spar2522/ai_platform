@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ai_provider.providers.defaults_ollama import (
+from aip_provider.providers.defaults_ollama import (
     DEFAULT_BASE_URL,
     DEFAULT_MAX_RETRIES,
     DEFAULT_MODEL,
@@ -10,11 +10,11 @@ from ai_provider.providers.defaults_ollama import (
 )
 import httpx
 
-from ai_provider.base_provider import AIProvider
-from ai_provider.config import AIProviderConfig
-from ai_provider.generation_options import GenerationOptions
-from ai_provider.generation_request import GenerationRequest
-from ai_provider.models import AIResponse
+from aip_provider.base_provider import AIProvider
+from aip_provider.config import AIProviderConfig
+from aip_provider.generation_options import GenerationOptions
+from aip_provider.generation_request import GenerationRequest
+from aip_provider.models import AIResponse
 
 
 class OllamaProvider(AIProvider):

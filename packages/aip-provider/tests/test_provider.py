@@ -1,10 +1,10 @@
 import pytest
 
-from ai_provider.base_provider import AIProvider
-from ai_provider.provider_type import Provider
+from aip_provider.base_provider import AIProvider
+from aip_provider.provider_type import Provider
 
 
-def test_ai_provider_is_abstract():
+def test_aip_provider_is_abstract():
     """Verify that AIProvider cannot be instantiated directly."""
     with pytest.raises(TypeError):
         AIProvider()

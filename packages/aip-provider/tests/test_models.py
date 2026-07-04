@@ -1,5 +1,5 @@
-from ai_provider.models import AIResponse
-from ai_provider.models import Usage
+from aip_provider.models import AIResponse
+from aip_provider.models import Usage
 
 
 def test_ai_response_initialization():
