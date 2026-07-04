@@ -1,11 +1,11 @@
-from ai_provider import (
+from aip_provider import (
     AI,
     AIProvider,
     AIProviderConfig,
     AIResponse,
     Usage,
 )
-from ai_provider.generation_options import GenerationOptions
+from aip_provider.generation_options import GenerationOptions
 
 
 def test_public_api_exports_are_correct():
@@ -17,6 +17,6 @@ def test_public_api_exports_are_correct():
     ), "AIProviderConfig class not found in public API exports"
     assert (
         GenerationOptions is not None
-    ), "GenerationConfig class not found in public API exports"
+    ), "GenerationOptions class not found in public API exports"
     assert AIResponse is not None, "AIResponse class not found in public API exports"
     assert Usage is not None, "Usage class not found in public API exports"
