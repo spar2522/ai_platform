@@ -11,6 +11,11 @@ class DummyProvider(AIProvider):
         self,
         config: AIProviderConfig,
     ):
+        """Initialize the DummyProvider with the given configuration.
+
+        Args:
+            config (AIProviderConfig): Configuration for the AI provider.
+        """
         pass
 
     async def generate(
@@ -22,7 +27,7 @@ class DummyProvider(AIProvider):
 
         Args:
             prompt (str): The input prompt (not used in this dummy implementation).
-            options (GenerationConfig | None): Generation options (not used in this dummy implementation).
+            options (GenerationOptions | None): Generation options (not used in this dummy implementation).
 
         Returns:
             AIResponse: A dummy response with fixed text and model name.
@@ -41,7 +46,7 @@ class DummyProvider(AIProvider):
 
         Args:
             prompt (str): The input prompt (not used in this dummy implementation).
-            options (GenerationConfig | None): Generation options (not used in this dummy implementation).
+            options (GenerationOptions | None): Generation options (not used in this dummy implementation).
 
         Yields:
             AIResponse: A dummy response with fixed text and model name.
