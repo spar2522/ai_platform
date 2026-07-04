@@ -1,11 +1,15 @@
-# ai-utils
+# aip-utils
 
-ai-utils is a package for the AI Platform.
+aip-utils is a package for the AI Platform.
 
 ## Installation
 
 ```bash
-uv sync
+uv install aip-utils
+```
 
 ## Running Tests
-uv run pytest / pytest
+
+```bash
+uv run pytest
+```
