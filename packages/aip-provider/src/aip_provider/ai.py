@@ -13,7 +13,7 @@ class AI:
 
     Examples
     --------
-
+    
     # Local model with all defaults
     ai = AI.local()
 
@@ -94,8 +94,8 @@ class AI:
         async for chunk in self._provider.stream(request):
             yield chunk
 
-        async def close(self):
-            await self._provider.close()
+    async def close(self):
+        await self._provider.close()
 
     @classmethod
     def local(cls, **kwargs):
