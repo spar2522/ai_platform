@@ -112,32 +112,26 @@ jobs:
 
       - name: Publish Packages
         if: >
-          steps.release.outputs.release == 'true' &&
-          steps.packages.outputs.packages != ''
+            steps.release.outputs.release == 'true' &&
+            steps.packages.outputs.packages != ''
         env:
-          UV_PUBLISH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          UV_PUBLISH_URL: https://upload.pypi.pkg.github.com/${{ github.repository_owner }}
+            UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         shell: bash
         run: |
-          while read PACKAGE; do
-
+            while read -r PACKAGE; do
             [ -z "$PACKAGE" ] && continue
 
             echo ""
-            echo "======================================="
+            echo "======================================"
             echo "Publishing $PACKAGE"
-            echo "======================================="
+            echo "======================================"
 
-            # Clean previous build artifacts
             rm -rf dist
 
-            # Build only this package
             uv build --package "$PACKAGE"
 
-            echo "Artifacts:"
-            ls -l dist
-
-            # Publish only the artifacts we just built
             uv publish dist/*
 
-          done <<< "${{ steps.packages.outputs.packages }}"
+            done <<EOF
+            ${{ steps.packages.outputs.packages }}
+            EOF
