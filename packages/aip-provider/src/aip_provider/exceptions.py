@@ -16,3 +16,4 @@ class RateLimitException(AIProviderException):
 class TimeoutException(AIProviderException):
     """Exception raised when operations time out."""
     pass
+
