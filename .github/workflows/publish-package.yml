@@ -56,7 +56,7 @@ jobs:
 
       - name: Skip (Not a Release)
         if: steps.release.outputs.release != 'true'
-        run: echo "No '#release' marker found hence skipping release"   
+        run: echo "No '#release' marker found hence skipping release"
 
       ####################################################################
       # Phase 3 - Detect Changed Packages
@@ -107,18 +107,36 @@ jobs:
         run: echo "No packages found to publish"
 
       ####################################################################
-      # Phase 4 - Build & Publish
+      # Phase 4 - Temporary Version Bump
+      ####################################################################
+
+      - name: Bump Package Versions (Temporary)
+        if: >
+          steps.release.outputs.release == 'true' &&
+          steps.packages.outputs.packages != ''
+        shell: bash
+        run: |
+          # TEMPORARY:
+          # During rapid platform development we auto-bump package versions
+          # before publishing to PyPI.
+          #
+          # TODO:
+          # Remove this step once `aip release` manages semantic versioning.
+          python scripts/ci_bump_version.py ${{ steps.packages.outputs.packages }}
+
+      ####################################################################
+      # Phase 5 - Build & Publish
       ####################################################################
 
       - name: Publish Packages
         if: >
-            steps.release.outputs.release == 'true' &&
-            steps.packages.outputs.packages != ''
+          steps.release.outputs.release == 'true' &&
+          steps.packages.outputs.packages != ''
         env:
-            UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         shell: bash
         run: |
-            while read -r PACKAGE; do
+          while read -r PACKAGE; do
             [ -z "$PACKAGE" ] && continue
 
             echo ""
@@ -132,6 +150,6 @@ jobs:
 
             uv publish dist/*
 
-            done <<EOF
-            ${{ steps.packages.outputs.packages }}
-            EOF
+          done <<EOF
+          ${{ steps.packages.outputs.packages }}
+          EOF
