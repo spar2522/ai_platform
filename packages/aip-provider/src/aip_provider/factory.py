@@ -5,21 +5,24 @@ from aip_provider.providers.gemini_provider import GeminiProvider
 from aip_provider.providers.ollama_provider import OllamaProvider
 
 
-class AIProviderFactory:
+class AIPProviderFactory:
 
     @staticmethod
     def create(config):
-        """Create an AI provider instance based on the configuration.
+        """Create an AIP provider instance based on the configuration.
 
         Args:
-            config: Configuration object containing the provider type.
+            config: Configuration object containing the 'provider' attribute
+                    specifying the type of provider to create.
 
         Returns:
-            An instance of the corresponding AI provider.
+            An instance of the corresponding AIP provider.
 
         Raises:
-            ValueError: If the provider type is not supported.
+            ValueError: If the provider type is not supported or config is None.
         """
+        if config is None:
+            raise ValueError("Configuration cannot be None")
         providers = {
             Provider.OLLAMA: OllamaProvider,
             Provider.DUMMY: DummyProvider,
