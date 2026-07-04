@@ -2,7 +2,7 @@ from enum import StrEnum
 
 
 class Provider(StrEnum):
-    """Enum representing different AI service providers."""
+    """Enum representing different AIP service providers."""
 
     OLLAMA = "ollama"
 
