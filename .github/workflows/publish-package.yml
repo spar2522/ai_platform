@@ -49,9 +49,9 @@ jobs:
           echo "$COMMIT_MESSAGE"
 
           if [[ "$COMMIT_MESSAGE" =~ (^|[[:space:]])#release$ ]]; then
-            echo "Proceeding to next step for release" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
           else
-            echo "NO RELEASE NEEDED" >> "$GITHUB_OUTPUT"
+            echo "release=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Skip (Not a Release)
