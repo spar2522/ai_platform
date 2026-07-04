@@ -20,9 +20,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      ####################################################################
       # Phase 1 - Setup
-      ####################################################################
+      # -----------------
+      # Checkout the validated commit and install dependencies
 
       - name: Checkout Validated Commit
         uses: actions/checkout@v4
@@ -34,10 +34,11 @@ jobs:
 
       - name: Install Workspace Dependencies
         run: uv sync --all-packages
+        # Ensures all dependencies are up to date for the current workflow
 
-      ####################################################################
       # Phase 2 - Determine Release Intent
-      ####################################################################
+      # ----------------------------------
+      # Check if the commit message contains the #release tag
 
       - name: Check Release Commit
         id: release
@@ -56,11 +57,11 @@ jobs:
 
       - name: Skip (Not a Release)
         if: steps.release.outputs.release != 'true'
-        run: echo "No '#release' marker found hence skipping release"   
+        run: echo "No '#release' marker found, skipping release"
 
-      ####################################################################
       # Phase 3 - Detect Changed Packages
-      ####################################################################
+      # ---------------------------------
+      # Identify packages that have changed in the current commit
 
       - name: Detect Changed Packages
         id: packages
@@ -69,8 +70,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          BEFORE="${{ github.event.workflow_run.head_sha }}^"
-          AFTER="${{ github.event.workflow_run.head_sha }}"
+          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
+          BEFORE="$COMMIT_SHA^"
+          AFTER="$COMMIT_SHA"
 
           echo "Comparing:"
           echo "$BEFORE"
@@ -106,9 +108,9 @@ jobs:
           steps.packages.outputs.packages == ''
         run: echo "No packages found to publish"
 
-      ####################################################################
       # Phase 4 - Publish Packages
-      ####################################################################
+      # --------------------------
+      # Publish each changed package to the package registry
 
       - name: Publish Packages
         if: >
@@ -119,8 +121,7 @@ jobs:
           UV_PUBLISH_URL: https://upload.pypi.pkg.github.com/${{ github.repository_owner }}
         shell: bash
         run: |
-          while read PACKAGE; do
-
+          while read -r PACKAGE; do
             [ -z "$PACKAGE" ] && continue
 
             echo ""
@@ -128,11 +129,10 @@ jobs:
             echo "Publishing $PACKAGE"
             echo "======================================="
 
-            cd packages/$PACKAGE
+            cd "packages/$PACKAGE" || exit 1
 
             uv build
             uv publish
 
             cd ../..
-
           done <<< "${{ steps.packages.outputs.packages }}"
