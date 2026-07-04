@@ -20,9 +20,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      ####################################################################
       # Phase 1 - Setup
-      ####################################################################
+      # -----------------
+      # Checkout the validated commit and install dependencies
 
       - name: Checkout Validated Commit
         uses: actions/checkout@v4
@@ -35,9 +35,9 @@ jobs:
       - name: Install Workspace Dependencies
         run: uv sync --all-packages
 
-      ####################################################################
       # Phase 2 - Determine Release Intent
-      ####################################################################
+      # ----------------------------------
+      # Check if the commit message contains the #release marker
 
       - name: Check Release Commit
         id: release
@@ -48,6 +48,7 @@ jobs:
           echo "Commit message:"
           echo "$COMMIT_MESSAGE"
 
+          # Check for #release at the end of the commit message
           if [[ "$COMMIT_MESSAGE" =~ (^|[[:space:]])#release$ ]]; then
             echo "release=true" >> "$GITHUB_OUTPUT"
           else
@@ -58,9 +59,9 @@ jobs:
         if: steps.release.outputs.release != 'true'
         run: echo "No '#release' marker found hence skipping release"   
 
-      ####################################################################
       # Phase 3 - Detect Changed Packages
-      ####################################################################
+      # ---------------------------------
+      # Identify packages that have changed in the commit
 
       - name: Detect Changed Packages
         id: packages
@@ -76,6 +77,7 @@ jobs:
           echo "$BEFORE"
           echo "$AFTER"
 
+          # Use GitHub API to find changed files and extract package names
           PACKAGES=$(
             gh api \
               repos/${{ github.repository }}/compare/$BEFORE...$AFTER \
@@ -106,9 +108,9 @@ jobs:
           steps.packages.outputs.packages == ''
         run: echo "No packages found to publish"
 
-      ####################################################################
       # Phase 4 - Publish Packages
-      ####################################################################
+      # --------------------------
+      # Publish each detected package to GitHub Packages
 
       - name: Publish Packages
         if: >
