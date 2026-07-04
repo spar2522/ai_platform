@@ -1,6 +1,6 @@
-# $PACKAGE_NAME
+# ai-utils
 
-$DESCRIPTION
+ai-utils is a package for the AI Platform.
 
 ## Installation
 

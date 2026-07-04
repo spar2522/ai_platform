@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "ai-platform",
     "ai-provider",
+    "ai-utils",
     "aip-cli",
 ]
 
@@ -66,15 +67,42 @@ dev = [
 ]
 
 [[package]]
+name = "ai-utils"
+version = "0.1.0"
+source = { editable = "packages/ai-utils" }
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "pytest-asyncio", specifier = ">=1.4.0" },
+]
+
+[[package]]
 name = "aip-cli"
 version = "0.1.0"
-source = { virtual = "packages/aip-cli" }
+source = { editable = "packages/aip-cli" }
 dependencies = [
     { name = "typer" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
-requires-dist = [{ name = "typer", specifier = ">=0.26.8" }]
+requires-dist = [{ name = "typer", specifier = ">=0.16.0" }]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.1.1" }]
 
 [[package]]
 name = "annotated-doc"

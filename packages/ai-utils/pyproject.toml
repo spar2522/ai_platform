@@ -3,9 +3,9 @@ requires = ["setuptools>=80"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "$PACKAGE_NAME"
+name = "ai-utils"
 version = "0.1.0"
-description = "$DESCRIPTION"
+description = "ai-utils is a package for the AI Platform."
 readme = "README.md"
 requires-python = ">=3.12"
 

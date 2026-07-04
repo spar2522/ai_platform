@@ -1,5 +1,6 @@
 from pathlib import Path
 from string import Template
+import subprocess
 
 
 class PackageGenerator:
@@ -84,11 +85,13 @@ class PackageGenerator:
         )
 
         template = Template(template_text)
+        description = f"{package_name} is a package for the AI Platform."
 
         output = template.safe_substitute(
             PACKAGE_NAME=package_name,
             MODULE_NAME=module_name,
             CLASS_NAME=class_name,
+            DESCRIPTION=description,
         )
 
         destination.write_text(
