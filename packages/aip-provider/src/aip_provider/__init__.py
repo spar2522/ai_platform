@@ -1,5 +1,6 @@
 """Package initialization for aip_provider.
 
+This package provides AI interaction capabilities through various providers and configurations.
 Exports public interfaces, configurations, models, and providers.
 """
 
@@ -23,11 +24,11 @@ from aip_provider.models import (
 )
 
 __all__ = [
+    "GenerationOptions",
     "AI",
     "AIProvider",
     "Provider",
     "AIProviderConfig",
-    "GenerationOptions",
     "AIResponse",
     "Usage",
 ]
