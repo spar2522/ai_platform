@@ -9,7 +9,7 @@ from aip_provider.provider_type import Provider
 
 class AI:
     """
-    Public entry point for the AI SDK.
+    Public entry point for the AI SDK..
 
     Examples
     --------
