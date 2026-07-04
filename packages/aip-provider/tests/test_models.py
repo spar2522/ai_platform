@@ -14,11 +14,13 @@ def test_ai_response_initialization():
 
 
 def test_usage_initialization():
-    """Test that Usage is initialized with correct token values."""
+    """Test that Usage is initialized with correct prompt, completion, and total token values."""
     usage_instance = Usage(
         prompt_tokens=10,
         completion_tokens=20,
         total_tokens=30,
     )
 
+    assert usage_instance.prompt_tokens == 10
+    assert usage_instance.completion_tokens == 20
     assert usage_instance.total_tokens == 30
