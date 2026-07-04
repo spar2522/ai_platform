@@ -6,6 +6,10 @@ ai-utils is a package for the AI Platform.
 
 ```bash
 uv sync
+```
 
 ## Running Tests
-uv run pytest / pytest
+
+```bash
+uv run pytest
+```
