@@ -12,4 +12,5 @@ def test_aip_provider_is_abstract():
 
 def test_provider_enum_values():
     """Ensure that the Provider enum has the correct string value."""
-    assert Provider.OLLAMA.value == "ollama"
+    for member in Provider:
+        assert member.value == member.name.lower()
