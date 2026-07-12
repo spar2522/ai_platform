@@ -2,7 +2,7 @@ from aip_canonica.internal.models import Cell, CellLocation
 
 
 def test_cell():
-
+    """Test the Cell model's initialization and properties."""
     cell = Cell(
         value=100,
         location=CellLocation(
