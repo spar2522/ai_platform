@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aip-canonica"
+version = "0.1.0"
+description = "Turn business documents into business objects."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [
+    { name = "Arpit Ratan" }
+]
+
+dependencies = [
+    "aip-provider",
+    "aip-utils",
+]
+
+[tool.uv.sources]
+aip-provider = { workspace = true }
+aip-utils = { workspace = true }
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0",
+    "pytest-asyncio>=1.0",
+]
