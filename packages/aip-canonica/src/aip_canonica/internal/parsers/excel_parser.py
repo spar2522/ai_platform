@@ -19,70 +19,76 @@ class ExcelParser(DocumentParser):
         self,
         path: Path,
     ) -> Workbook:
+        """Parses an Excel file into a Workbook model.
 
+        Args:
+            path (Path): The file path to the Excel workbook.
+
+        Returns:
+            Workbook: The parsed workbook model.
+        """
         workbook = Workbook()
 
-        xl = load_workbook(
+        excel_workbook = load_workbook(
             filename=path,
             data_only=False,
         )
 
-        for worksheet in xl.worksheets:
+        for worksheet in excel_workbook.worksheets:
 
             workbook.sheets.append(self._parse_sheet(worksheet))
 
         return workbook
 
     def _parse_sheet(self, worksheet) -> Sheet:
+        """Parses an Excel worksheet into a Sheet model.
 
+        Args:
+            worksheet: The openpyxl worksheet object.
+
+        Returns:
+            Sheet: The parsed sheet model.
+        """
         sheet = Sheet(
             name=worksheet.title,
         )
 
-        for row in worksheet.iter_rows():
-
-            sheet.rows.append(
-                self._parse_row(
-                    worksheet.title,
-                    row,
-                )
-            )
+        for cells in worksheet.iter_rows():
+            sheet.rows.append(self._parse_row(worksheet.title, cells))
 
         return sheet
 
-    def _parse_row(
-        self,
-        sheet_name: str,
-        excel_row,
-    ) -> Row:
+    def _parse_row(self, sheet_name: str, cells: tuple) -> Row:
+        """Parses a row of cells into a Row model.
 
-        row = Row(
-            index=excel_row[0].row,
+        Args:
+            sheet_name (str): The name of the sheet.
+            cells (tuple): A tuple of openpyxl cell objects representing the row.
+
+        Returns:
+            Row: The parsed row model.
+        """
+        return Row(
+            index=cells[0].row,
+            cells=[self._parse_cell(sheet_name, cell) for cell in cells],
         )
 
-        for excel_cell in excel_row:
+    def _parse_cell(self, sheet_name: str, cell: 'openpyxl.cell.cell.Cell') -> Cell:
+        """Parses a cell into a Cell model.
 
-            row.cells.append(
-                self._parse_cell(
-                    sheet_name,
-                    excel_cell,
-                )
-            )
+        Args:
+            sheet_name (str): The name of the sheet.
+            cell (openpyxl.cell.cell.Cell): The openpyxl cell object.
 
-        return row
-
-    def _parse_cell(
-        self,
-        sheet_name: str,
-        excel_cell,
-    ) -> Cell:
-
+        Returns:
+            Cell: The parsed cell model.
+        """
         return Cell(
-            value=excel_cell.value,
+            value=cell.value,
             location=CellLocation(
                 sheet=sheet_name,
-                row=excel_cell.row,
-                column=excel_cell.column,
-                address=excel_cell.coordinate,
+                row=cell.row,
+                column=cell.column,
+                address=cell.coordinate,
             ),
         )
