@@ -19,6 +19,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
+# Workspace dependencies
 aip-provider = { workspace = true }
 aip-utils = { workspace = true }
 
@@ -29,6 +30,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [dependency-groups]
+# Development dependencies
 dev = [
     "pytest>=9.0",
     "pytest-asyncio>=1.0",
