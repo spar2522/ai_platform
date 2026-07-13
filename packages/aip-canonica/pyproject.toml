@@ -16,6 +16,7 @@ authors = [
 dependencies = [
     "aip-provider",
     "aip-utils",
+    "openpyxl>=3.1",
 ]
 
 [tool.uv.sources]
