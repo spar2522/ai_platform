@@ -1,5 +1,3 @@
-import json
-
 import httpx
 import pytest
 
@@ -9,9 +7,6 @@ from aip_provider.generation_request import GenerationRequest
 from aip_provider.models import AIResponse
 from aip_provider.provider_type import Provider
 from aip_provider.providers.ollama_provider import OllamaProvider
-
-import httpx
-import pytest
 
 
 async def ollama_running() -> bool:

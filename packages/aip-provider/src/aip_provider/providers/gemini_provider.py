@@ -76,7 +76,7 @@ class GeminiProvider(AIProvider):
         )
 
         return AIResponse(
-            text=response.text,
+            text=response.text or "",
             model=self._model,
             finish_reason=None,
             usage=None,
@@ -87,3 +87,4 @@ class GeminiProvider(AIProvider):
         request: GenerationRequest,
     ):
         raise NotImplementedError("Streaming support is coming in a future release.")
+        yield None  # pragma: no cover

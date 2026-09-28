@@ -1,6 +1,7 @@
-from abc import ABC
-from abc import abstractmethod
+from __future__ import annotations
 
+from abc import ABC, abstractmethod
+from typing import Any, AsyncIterator
 
 from aip_provider.generation_request import GenerationRequest
 from aip_provider.models import AIResponse
@@ -11,17 +12,21 @@ class AIProvider(ABC):
     @abstractmethod
     async def generate(
         self,
-        request: GenerationRequest | None = None,
+        request: GenerationRequest,
     ) -> AIResponse:
         """
         Generate a response from an LLM.
         """
 
     @abstractmethod
-    async def stream(
+    def stream(
         self,
-        request: GenerationRequest | None = None,
-    ):
+        request: GenerationRequest,
+    ) -> AsyncIterator[Any]:
         """
         Stream tokens.
         """
+
+    async def close(self) -> None:
+        """Close provider resources."""
+        pass
