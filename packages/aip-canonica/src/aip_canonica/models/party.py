@@ -10,7 +10,17 @@ from aip_canonica.models.provenance import Provenance
 
 @dataclass(frozen=True, slots=True)
 class Party:
-    """An individual, business entity, or financial institution."""
+    """An individual, business entity, or financial institution.
+
+    Attributes:
+        id: Unique identifier for the party.
+        name: Full name of the party.
+        tax_id: Tax identification number (optional).
+        address: Physical or postal address (optional).
+        phone: Contact phone number (optional).
+        email: Contact email address (optional).
+        provenance: Metadata about the source of this data (optional).
+    """
 
     id: str
     name: str
@@ -22,9 +32,11 @@ class Party:
 
     @property
     def node_type(self) -> str:
+        """Type identifier for graph representation."""
         return "Party"
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize the Party instance to a dictionary."""
         data: dict[str, Any] = {
             "id": self.id,
             "node_type": self.node_type,
@@ -45,7 +57,18 @@ class Party:
 
 @dataclass(frozen=True, slots=True)
 class Account:
-    """A financial account (bank account, ledger account, wallet)."""
+    """A financial account (bank account, ledger account, wallet).
+
+    Attributes:
+        id: Unique identifier for the account.
+        account_number: Identifier assigned by the financial institution.
+        account_type: Type of account (e.g., savings, checking) (optional).
+        institution_name: Name of the financial institution (optional).
+        ifsc_code: Indian Financial System Code (optional).
+        currency: Currency type (default: INR).
+        holder_id: Identifier of the party that holds the account (optional).
+        provenance: Metadata about the source of this data (optional).
+    """
 
     id: str
     account_number: str
@@ -58,9 +81,11 @@ class Account:
 
     @property
     def node_type(self) -> str:
+        """Type identifier for graph representation."""
         return "Account"
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize the Account instance to a dictionary."""
         data: dict[str, Any] = {
             "id": self.id,
             "node_type": self.node_type,
