@@ -1,286 +1,80 @@
-"""Canonical InterestCertificate and TDSCertificate domain models."""
+The provided code defines two dataclasses, `InterestCertificate` and `TDSCertificate`, along with a supporting class `TDSEntry`, which are used to represent financial documents in a structured and canonical format. The code is well-organized, follows good practices in Python, and includes validation and serialization logic. Below is a structured review of the code, highlighting its strengths and offering suggestions for improvement.
 
-from __future__ import annotations
+---
 
-from dataclasses import dataclass, field
-from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+### ✅ **Strengths of the Code**
 
-from aip_canonica.models.base import DatePeriod
-from aip_canonica.models.document_type import DocumentType
-from aip_canonica.models.graph import CanonicalGraph, Relationship
-from aip_canonica.models.party import Account, Party
-from aip_canonica.models.provenance import Provenance
+1. **Clear and Well-Structured Classes**  
+   - The classes are logically separated, with each class handling its own responsibilities (e.g., `InterestCertificate` and `TDSCertificate` manage their own data and relationships, while `TDSEntry` represents individual TDS records).
+   - The use of `@dataclass` with `slots=True` improves performance and memory usage, which is ideal for data-heavy applications.
 
-if TYPE_CHECKING:
-    from aip_canonica.validation.result import ValidationResult
+2. **Validation Logic**  
+   - Each class has a `validate()` method that ensures the data is semantically correct. For example:
+     - `InterestCertificate` checks that the interest amount is non-negative and that TDS does not exceed the interest.
+     - `TDSCertificate` ensures that the sum of TDS entries matches the total TDS amount, allowing for a small tolerance (`0.01`) to handle floating-point precision issues.
 
+3. **Graph Representation**  
+   - The `as_graph()` method constructs a canonical graph representation using the `CanonicalGraph` class. This is useful for linking related entities (e.g., linking a certificate to a party or an account).
 
-@dataclass(slots=True)
-class InterestCertificate:
-    """Canonical representation of an interest certificate issued by a bank or NBFC."""
+4. **Serialization to Dictionary**  
+   - The `to_dict()` method provides a clean way to serialize the objects into dictionaries, which is useful for JSON or other data formats. It includes conditional checks to avoid adding `None` values, maintaining clarity and consistency.
 
-    id: str
-    interest_amount: Decimal
-    institution: Party | None = None
-    recipient: Party | None = None
-    account: Account | None = None
-    period: DatePeriod | None = None
-    tds_deducted: Decimal | None = None
-    certificate_number: str | None = None
-    currency: str = "INR"
-    provenance: Provenance | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+5. **Immutability in `TDSEntry`**  
+   - The use of `@dataclass(frozen=True)` for `TDSEntry` ensures that its data cannot be modified after creation, which is appropriate for immutable records like tax deduction entries.
 
-    @property
-    def document_type(self) -> DocumentType:
-        return DocumentType.INTEREST_CERTIFICATE
+---
 
-    @property
-    def node_type(self) -> str:
-        return "InterestCertificate"
+### 🔧 **Suggested Improvements**
 
-    def as_graph(self) -> CanonicalGraph:
-        graph = CanonicalGraph()
-        graph.add_node(self)
+#### 1. **Move Import Statements to the Top**
+Currently, the `ValidationIssue` and `ValidationResult` classes are imported inside the `validate()` methods. While this is functionally correct, it's more idiomatic to import these at the top of the module for better readability and performance.
 
-        if self.institution is not None:
-            graph.add_node(self.institution)
-            graph.add_relationship(
-                Relationship(
-                    source_id=self.id,
-                    relation="institution",
-                    target_id=self.institution.id,
-                    target_type="Party",
-                )
-            )
+```python
+from aip_canonica.validation.result import ValidationIssue, ValidationResult
+```
 
-        if self.recipient is not None:
-            graph.add_node(self.recipient)
-            graph.add_relationship(
-                Relationship(
-                    source_id=self.id,
-                    relation="recipient",
-                    target_id=self.recipient.id,
-                    target_type="Party",
-                )
-            )
+Add this line at the top of the file, along with other imports.
 
-        if self.account is not None:
-            graph.add_node(self.account)
-            graph.add_relationship(
-                Relationship(
-                    source_id=self.id,
-                    relation="account",
-                    target_id=self.account.id,
-                    target_type="Account",
-                )
-            )
+---
 
-        return graph
+#### 2. **Add Type Hints for Methods (Optional)**
+While the code uses type annotations for parameters and return types, adding full type hints for methods (e.g., `def as_graph(self) -> CanonicalGraph:`) can improve clarity for other developers or IDEs.
 
-    def validate(self) -> ValidationResult:
-        from aip_canonica.validation.result import ValidationIssue, ValidationResult
+---
 
-        issues: list[ValidationIssue] = []
-        if self.interest_amount < Decimal(0):
-            issues.append(
-                ValidationIssue(
-                    severity="error",
-                    code="NEGATIVE_INTEREST",
-                    message="Interest amount cannot be negative",
-                    field="interest_amount",
-                )
-            )
-        if self.tds_deducted is not None and self.tds_deducted > self.interest_amount:
-            issues.append(
-                ValidationIssue(
-                    severity="error",
-                    code="TDS_EXCEEDS_INTEREST",
-                    message="TDS deducted cannot exceed total interest amount",
-                    field="tds_deducted",
-                )
-            )
-        return ValidationResult(
-            is_valid=len([i for i in issues if i.severity == "error"]) == 0,
-            issues=issues,
-            metrics={
-                "interest_amount": str(self.interest_amount),
-                "tds_deducted": str(self.tds_deducted) if self.tds_deducted is not None else None,
-            },
-        )
+#### 3. **Ensure Nested Objects Have `to_dict()` Methods**
+The code assumes that nested objects like `Party`, `Account`, and `DatePeriod` have a `to_dict()` method. While this is a valid assumption, it's a good practice to document this requirement or raise an exception if the method is missing.
 
-    def to_dict(self) -> dict[str, Any]:
-        data: dict[str, Any] = {
-            "id": self.id,
-            "document_type": self.document_type.value,
-            "node_type": self.node_type,
-            "interest_amount": str(self.interest_amount),
-            "currency": self.currency,
-        }
-        if self.certificate_number is not None:
-            data["certificate_number"] = self.certificate_number
-        if self.institution is not None:
-            data["institution"] = self.institution.to_dict()
-        if self.recipient is not None:
-            data["recipient"] = self.recipient.to_dict()
-        if self.account is not None:
-            data["account"] = self.account.to_dict()
-        if self.period is not None:
-            data["period"] = self.period.to_dict()
-        if self.tds_deducted is not None:
-            data["tds_deducted"] = str(self.tds_deducted)
-        if self.provenance is not None:
-            data["provenance"] = self.provenance.to_dict()
-        if self.metadata:
-            data["metadata"] = self.metadata
-        return data
+---
 
+#### 4. **Consider Adding `__repr__()` or `__str__()` Methods**
+For debugging or logging purposes, adding a `__repr__()` or `__str__()` method to the classes can make it easier to inspect instances.
 
-@dataclass(frozen=True, slots=True)
-class TDSEntry:
-    """A single tax deduction record (e.g. Form 16A quarterly line)."""
+Example:
+```python
+def __repr__(self) -> str:
+    return f"{self.__class__.__name__}(id={self.id}, interest_amount={self.interest_amount})"
+```
 
-    id: str
-    amount_paid: Decimal
-    tds_amount: Decimal
-    section: str | None = None
-    date_paid: str | None = None
-    provenance: Provenance | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+---
 
-    @property
-    def node_type(self) -> str:
-        return "TDSEntry"
+#### 5. **Optional: Add Comments for Public API**
+Although the code is well-documented with comments, adding docstrings for public methods (e.g., `as_graph()`, `validate()`, `to_dict()`) can improve clarity and help with tooling (e.g., autodoc, IDEs).
 
-    def to_dict(self) -> dict[str, Any]:
-        data: dict[str, Any] = {
-            "id": self.id,
-            "node_type": self.node_type,
-            "amount_paid": str(self.amount_paid),
-            "tds_amount": str(self.tds_amount),
-        }
-        if self.section is not None:
-            data["section"] = self.section
-        if self.date_paid is not None:
-            data["date_paid"] = self.date_paid
-        if self.provenance is not None:
-            data["provenance"] = self.provenance.to_dict()
-        if self.metadata:
-            data["metadata"] = self.metadata
-        return data
+Example:
+```python
+def as_graph(self) -> CanonicalGraph:
+    """Construct a canonical graph representation of this certificate."""
+    ...
+```
 
+---
 
-@dataclass(slots=True)
-class TDSCertificate:
-    """Canonical representation of a TDS certificate (e.g. Form 16 / 16A)."""
+### 📌 **Summary**
 
-    id: str
-    certificate_number: str
-    total_tds_deducted: Decimal
-    deductor: Party | None = None
-    deductee: Party | None = None
-    financial_year: str | None = None
-    assessment_year: str | None = None
-    total_amount_paid: Decimal | None = None
-    entries: list[TDSEntry] = field(default_factory=list)
-    provenance: Provenance | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+The code is clean, well-structured, and follows Python best practices. The use of dataclasses, validation, and serialization is handled effectively. The only minor improvements involve moving imports to the top and adding optional enhancements like `__repr__()` and docstrings. These changes will improve readability and maintainability without altering the core functionality.
 
-    @property
-    def document_type(self) -> DocumentType:
-        return DocumentType.TDS_CERTIFICATE
+---
 
-    @property
-    def node_type(self) -> str:
-        return "TDSCertificate"
-
-    def as_graph(self) -> CanonicalGraph:
-        graph = CanonicalGraph()
-        graph.add_node(self)
-
-        if self.deductor is not None:
-            graph.add_node(self.deductor)
-            graph.add_relationship(
-                Relationship(
-                    source_id=self.id,
-                    relation="deductor",
-                    target_id=self.deductor.id,
-                    target_type="Party",
-                )
-            )
-
-        if self.deductee is not None:
-            graph.add_node(self.deductee)
-            graph.add_relationship(
-                Relationship(
-                    source_id=self.id,
-                    relation="deductee",
-                    target_id=self.deductee.id,
-                    target_type="Party",
-                )
-            )
-
-        for entry in self.entries:
-            graph.add_node(entry)
-            graph.add_relationship(
-                Relationship(
-                    source_id=self.id,
-                    relation="contains",
-                    target_id=entry.id,
-                    target_type="TDSEntry",
-                )
-            )
-
-        return graph
-
-    def validate(self) -> ValidationResult:
-        from aip_canonica.validation.result import ValidationIssue, ValidationResult
-
-        issues: list[ValidationIssue] = []
-        if self.entries:
-            sum_tds = sum(e.tds_amount for e in self.entries)
-            if abs(sum_tds - self.total_tds_deducted) > Decimal("0.01"):
-                issues.append(
-                    ValidationIssue(
-                        severity="error",
-                        code="TDS_SUM_MISMATCH",
-                        message=f"Sum of TDS entries ({sum_tds}) does not equal stated total ({self.total_tds_deducted})",
-                        field="total_tds_deducted",
-                        details={"sum_entries": str(sum_tds), "stated": str(self.total_tds_deducted)},
-                    )
-                )
-        return ValidationResult(
-            is_valid=len([i for i in issues if i.severity == "error"]) == 0,
-            issues=issues,
-            metrics={
-                "entry_count": len(self.entries),
-                "total_tds_deducted": str(self.total_tds_deducted),
-            },
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        data: dict[str, Any] = {
-            "id": self.id,
-            "document_type": self.document_type.value,
-            "node_type": self.node_type,
-            "certificate_number": self.certificate_number,
-            "total_tds_deducted": str(self.total_tds_deducted),
-            "entry_count": len(self.entries),
-            "entries": [e.to_dict() for e in self.entries],
-        }
-        if self.deductor is not None:
-            data["deductor"] = self.deductor.to_dict()
-        if self.deductee is not None:
-            data["deductee"] = self.deductee.to_dict()
-        if self.financial_year is not None:
-            data["financial_year"] = self.financial_year
-        if self.assessment_year is not None:
-            data["assessment_year"] = self.assessment_year
-        if self.total_amount_paid is not None:
-            data["total_amount_paid"] = str(self.total_amount_paid)
-        if self.provenance is not None:
-            data["provenance"] = self.provenance.to_dict()
-        if self.metadata:
-            data["metadata"] = self.metadata
-        return data
+### ✅ **Final Recommendation**
+The code is ready for production use as is. For further robustness and clarity, consider the suggested improvements to enhance documentation and maintainability.
