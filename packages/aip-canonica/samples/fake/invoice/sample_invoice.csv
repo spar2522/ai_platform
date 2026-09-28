@@ -1,0 +1,18 @@
+Tax Invoice
+Invoice No: INV-2026-0042
+Invoice Date: 2026-05-15
+Due Date: 2026-06-15
+From: Alpha Tech Solutions Pvt Ltd
+GSTIN: 29AABCA1234F1Z5
+Bill To: Zeta Retailers Ltd
+GSTIN: 27AABCZ9876C1Z2
+
+Item,Quantity,Unit Price,Amount
+Software Engineering Services,40,1000.00,40000.00
+Cloud Architecture Review,10,2500.00,25000.00
+Security Audit,1,15000.00,15000.00
+
+Subtotal,80000.00
+Tax,14400.00
+Discount,2000.00
+Total,92400.00

@@ -1,0 +1,12 @@
+Account Number: 9876543210
+Account Holder: Acme Enterprises
+Bank: Standard Financial Bank
+Opening Balance: 50000.00
+
+Date,Description,Debit,Credit,Balance
+2026-05-02,Client Payment from Beta Corp,,15000.00,65000.00
+2026-05-03,Office Supplies Vendor,3200.00,,61800.00
+2026-05-04,Cloud Infrastructure AWS,5400.00,,56400.00
+2026-05-05,Consulting Fee received,,8000.00,64400.00
+
+Closing Balance: 64400.00
