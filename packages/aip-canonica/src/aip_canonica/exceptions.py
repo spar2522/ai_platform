@@ -28,8 +28,6 @@ class ExtractionError(CanonicaError):
     """Raised when extraction fails on a matched document."""
 
 
-
-
 class ValidationError(CanonicaError):
     """Raised when deterministic validation on a canonical model fails."""
 
