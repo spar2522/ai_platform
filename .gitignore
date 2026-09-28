@@ -197,10 +197,9 @@ cython_debug/
 # Visual Studio Code
 #   Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
 #   that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#   and can be added to the global gitignore or merged into this file. However, if you prefer, 
-#   you could uncomment the following to ignore the entire vscode folder
+#   and can be added to the global gitignore or merged into this file.  For a more nuclear
+#   option (not recommended) you can uncomment the following to ignore the entire .vscode folder.
 # .vscode/
-# Temporary file for partial code execution
 tempCodeRunnerFile.py
 
 # Ruff stuff:
@@ -211,15 +210,14 @@ tempCodeRunnerFile.py
 
 # Marimo
 marimo/_static/
-marimo/_lsp/
-__marimo__/
+marimo/_cache/
+marimo/.jupyter/
 
 # Streamlit
-.streamlit/secrets.toml
+streamlit/config.toml
 
 # macOS
 .DS_Store
-*.DS_Store
 
 # Local runtime data
 .canonica/
