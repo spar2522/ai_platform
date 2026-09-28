@@ -1,6 +1,5 @@
 from pathlib import Path
 from string import Template
-import subprocess
 
 
 class PackageGenerator:

@@ -28,6 +28,24 @@ jobs:
 
           echo "::endgroup::"
 
+      - name: Lint Workspace
+        shell: bash
+        run: |
+          echo "::group::🔍 Running Ruff Linter"
+
+          uv run ruff check .
+
+          echo "::endgroup::"
+
+      - name: Type Check Workspace
+        shell: bash
+        run: |
+          echo "::group::🔎 Running Mypy Type Checker"
+
+          uv run mypy --ignore-missing-imports packages/*/src
+
+          echo "::endgroup::"
+
       - name: Run Tests
         shell: bash
         run: |

@@ -157,3 +157,4 @@ class OllamaProvider(AIProvider):
         request: GenerationRequest,
     ):
         raise NotImplementedError("Streaming support is coming in a future release.")
+        yield None  # pragma: no cover

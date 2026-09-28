@@ -26,3 +26,12 @@ markers = [
     "integration: tests that require external services",
 ]
 addopts = "-ra"
+
+[tool.ruff]
+exclude = [
+    ".git",
+    ".canonica",
+    ".venv",
+    "build",
+    "dist",
+]
