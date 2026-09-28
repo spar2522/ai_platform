@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
+from aip_canonica.config import get_config
 from aip_canonica.exceptions import UnsupportedDocumentError, ValidationError
 from aip_canonica.extractors.base import Extractor
 from aip_canonica.extractors.registry import ExtractorRegistry, get_default_registry
@@ -13,6 +15,9 @@ from aip_canonica.models.base import CanonicalDocument
 from aip_canonica.parsers.parser_factory import ParserFactory
 from aip_canonica.validation.result import ValidationResult
 from aip_canonica.validation.validator import validate as validate_document
+
+if TYPE_CHECKING:
+    from aip_canonica.storage.base import SourceStorage
 
 logger = logging.getLogger("aip_canonica")
 
@@ -30,6 +35,10 @@ def understand(
     extractor: Extractor | None = None,
     registry: ExtractorRegistry | None = None,
     validate: bool = False,
+    storage: SourceStorage | None = None,
+    customer_id: str | None = None,
+    account_id: str | None = None,
+    storage_metadata: dict[str, Any] | None = None,
 ) -> CanonicalDocument:
     """Convert a financial document into a generic, typed canonical financial model.
 
@@ -38,6 +47,10 @@ def understand(
         extractor: Optional explicit extractor instance to use.
         registry: Optional custom extractor registry (defaults to built-in registry).
         validate: If True, execute deterministic validation and raise ValidationError on failure.
+        storage: Optional SourceStorage provider (defaults to configured global storage).
+        customer_id: Optional customer identity for multi-tenant structured storage.
+        account_id: Optional account identity for partitioned storage.
+        storage_metadata: Optional custom metadata dict to attach to the document storage reference.
 
     Returns:
         A strongly typed CanonicalDocument (such as BankStatement, Invoice, Ledger),
@@ -50,12 +63,25 @@ def understand(
     target_path = Path(path)
     workbook = parse_document(target_path)
     active_registry = registry or get_default_registry()
-    source_uri = str(target_path)
+
+    active_storage = storage or get_config().get_storage()
+    doc_ref = active_storage.store(
+        target_path,
+        customer_id=customer_id,
+        account_id=account_id,
+        metadata=storage_metadata,
+    )
+    source_uri = doc_ref.uri
+
+    def attach_storage(doc: CanonicalDocument) -> CanonicalDocument:
+        if doc.provenance is not None and isinstance(doc.provenance.metadata, dict):
+            doc.provenance.metadata["storage_reference"] = doc_ref.to_dict()
+        return doc
 
     # 1. Explicit extractor path
     if extractor is not None:
         logger.info("[Canonica][Match] Using explicitly provided extractor: '%s'", extractor.name)
-        cand_doc = extractor.extract(workbook, source_name=source_uri)
+        cand_doc = attach_storage(extractor.extract(workbook, source_name=source_uri))
         if validate:
             val_result = validate_document(cand_doc)
             if not val_result.is_valid:
@@ -74,7 +100,7 @@ def understand(
             target_path.name,
         )
         try:
-            cand_doc = specialized.extract(workbook, source_name=source_uri)
+            cand_doc = attach_storage(specialized.extract(workbook, source_name=source_uri))
             val_result = validate_document(cand_doc)
             if val_result.is_valid:
                 return cand_doc
@@ -103,7 +129,7 @@ def understand(
             generic.name,
             target_path.name,
         )
-        cand_doc = generic.extract(workbook, source_name=source_uri)
+        cand_doc = attach_storage(generic.extract(workbook, source_name=source_uri))
         if validate:
             val_result = validate_document(cand_doc)
             if not val_result.is_valid:

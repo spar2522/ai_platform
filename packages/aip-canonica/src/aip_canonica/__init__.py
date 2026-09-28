@@ -43,6 +43,13 @@ from .models import (
     TransactionDirection,
     Workbook,
 )
+from .storage import (
+    LocalReferenceStorage,
+    SecureRemoteStorage,
+    SourceStorage,
+    StoredDocumentReference,
+    StructuredLocalStorage,
+)
 from .validation.result import Finding, Severity, ValidationResult
 from .validation.validator import FinancialValidator
 
@@ -107,6 +114,12 @@ __all__ = [
     "Extractor",
     "ExtractorRegistry",
     "get_default_registry",
+    # Storage
+    "SourceStorage",
+    "StoredDocumentReference",
+    "LocalReferenceStorage",
+    "StructuredLocalStorage",
+    "SecureRemoteStorage",
     # Validation
     "FinancialValidator",
     "ValidationResult",
