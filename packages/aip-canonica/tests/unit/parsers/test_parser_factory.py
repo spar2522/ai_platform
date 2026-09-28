@@ -18,6 +18,13 @@ def test_csv_parser_selected():
     assert isinstance(parser, CsvParser)
 
 
+def test_pdf_parser_selected():
+    from aip_canonica.parsers import PdfParser
+
+    parser = ParserFactory.create(Path("statement.pdf"))
+    assert isinstance(parser, PdfParser)
+
+
 def test_unsupported_parser_selected():
     with pytest.raises(ValueError, match="Unsupported document type"):
         ParserFactory.create(Path("statement.unknown"))
