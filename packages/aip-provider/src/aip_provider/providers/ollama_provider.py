@@ -25,8 +25,6 @@ class OllamaProvider(AIProvider):
     SDK models into Ollama's HTTP API.
     """
 
-    DEFAULT_BASE_URL = "http://localhost:11434"
-
     def __init__(
         self,
         config: AIProviderConfig,
@@ -125,36 +123,27 @@ class OllamaProvider(AIProvider):
             "/api/chat",
             json=payload,
         )
-
         response.raise_for_status()
-
         return response
+
+    async def _stream(
+        self,
+        payload: dict[str, Any],
+    ) -> None:
+        """
+        Stream response from Ollama.
+
+        This method is not yet implemented. Streaming support will be added
+        in a future release.
+        """
+        raise NotImplementedError("Streaming is not currently supported.")
 
     async def generate(
         self,
-        request: GenerationRequest,
+        payload: dict[str, Any],
     ) -> AIResponse:
-        """
-        Generate a response from Ollama.
-        """
-
-        payload = self._build_payload(request)
-
         response = await self._post(payload)
-
-        body = response.json()
-
-        message = body.get("message", {})
-
         return AIResponse(
-            text=message.get("content", ""),
-            model=body.get("model", self._model),
-            finish_reason=body.get("done_reason"),
+            content=response.json()["response"],
+            finish_reason=response.json().get("done_reason"),
         )
-
-    async def stream(
-        self,
-        request: GenerationRequest,
-    ):
-        raise NotImplementedError("Streaming support is coming in a future release.")
-        yield None  # pragma: no cover
