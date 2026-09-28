@@ -28,6 +28,7 @@ class Relationship:
     properties: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize relationship to dictionary format."""
         data: dict[str, Any] = {
             "source_id": self.source_id,
             "relation": self.relation,
@@ -48,6 +49,12 @@ class CanonicalGraph:
         nodes: Sequence[CanonicalNode] | None = None,
         relationships: Sequence[Relationship] | None = None,
     ) -> None:
+        """Initialize graph with nodes and relationships.
+
+        Args:
+            nodes: Collection of canonical nodes to add to the graph.
+            relationships: Collection of relationships to add to the graph.
+        """
         self._nodes: dict[str, CanonicalNode] = {}
         self._outgoing: dict[str, list[Relationship]] = defaultdict(list)
         self._incoming: dict[str, list[Relationship]] = defaultdict(list)
@@ -61,7 +68,10 @@ class CanonicalGraph:
                 self.add_relationship(rel)
 
     def add_node(self, node: CanonicalNode) -> None:
-        """Register a node into the graph."""
+        """Register a node into the graph.
+
+        Note: If a node with the same ID already exists, it will be replaced.
+        """
         self._nodes[node.id] = node
 
     def add_relationship(self, relationship: Relationship) -> None:
@@ -77,25 +87,44 @@ class CanonicalGraph:
     def outgoing(
         self, node_id: str, relation: str | None = None
     ) -> list[Relationship]:
-        """Discover all outgoing relationships from node_id, optionally filtered by relation type."""
+        """Discover all outgoing relationships from node_id.
+
+        Args:
+            node_id: ID of the node to query.
+            relation: Optional filter for relationship type.
+
+        Returns:
+            List of relationships matching the criteria.
+        """
         rels = self._outgoing.get(node_id, [])
         if relation is not None:
             return [r for r in rels if r.relation == relation]
-        return list(rels)
+        return rels
 
     def incoming(
         self, node_id: str, relation: str | None = None
     ) -> list[Relationship]:
-        """Discover all incoming relationships to node_id, optionally filtered by relation type."""
+        """Discover all incoming relationships to node_id.
+
+        Args:
+            node_id: ID of the node to query.
+            relation: Optional filter for relationship type.
+
+        Returns:
+            List of relationships matching the criteria.
+        """
         rels = self._incoming.get(node_id, [])
         if relation is not None:
             return [r for r in rels if r.relation == relation]
-        return list(rels)
+        return rels
 
     def target_nodes(
         self, node_id: str, relation: str | None = None
     ) -> list[CanonicalNode]:
-        """Retrieve resolved target nodes along outgoing relationships."""
+        """Retrieve resolved target nodes along outgoing relationships.
+
+        Returns only nodes that exist in the graph.
+        """
         results: list[CanonicalNode] = []
         for r in self.outgoing(node_id, relation):
             target = self.get_node(r.target_id)
@@ -106,7 +135,10 @@ class CanonicalGraph:
     def source_nodes(
         self, node_id: str, relation: str | None = None
     ) -> list[CanonicalNode]:
-        """Retrieve resolved source nodes along incoming relationships."""
+        """Retrieve resolved source nodes along incoming relationships.
+
+        Returns only nodes that exist in the graph.
+        """
         results: list[CanonicalNode] = []
         for r in self.incoming(node_id, relation):
             source = self.get_node(r.source_id)
@@ -125,7 +157,7 @@ class CanonicalGraph:
         return list(self._relationships)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the graph to standard dictionary."""
+        """Serialize the graph to standard dictionary format."""
         return {
             "nodes": [node.to_dict() for node in self._nodes.values()],
             "relationships": [rel.to_dict() for rel in self._relationships],
