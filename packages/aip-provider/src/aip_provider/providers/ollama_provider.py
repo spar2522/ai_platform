@@ -25,8 +25,6 @@ class OllamaProvider(AIProvider):
     SDK models into Ollama's HTTP API.
     """
 
-    DEFAULT_BASE_URL = "http://localhost:11434"
-
     def __init__(
         self,
         config: AIProviderConfig,
@@ -69,6 +67,11 @@ class OllamaProvider(AIProvider):
         self,
         request: GenerationRequest,
     ) -> dict[str, Any]:
+        """
+        Construct the payload for Ollama's API.
+
+        Maps internal generation options to Ollama's expected parameters.
+        """
 
         options = self._resolve_generation_options(request)
 
@@ -120,6 +123,11 @@ class OllamaProvider(AIProvider):
         self,
         payload: dict[str, Any],
     ) -> httpx.Response:
+        """
+        Send a POST request to Ollama's API endpoint.
+
+        Raises an exception for HTTP errors.
+        """
 
         response = await self._client.post(
             "/api/chat",
@@ -136,6 +144,8 @@ class OllamaProvider(AIProvider):
     ) -> AIResponse:
         """
         Generate a response from Ollama.
+
+        Returns the generated text and metadata.
         """
 
         payload = self._build_payload(request)
@@ -157,4 +167,3 @@ class OllamaProvider(AIProvider):
         request: GenerationRequest,
     ):
         raise NotImplementedError("Streaming support is coming in a future release.")
-        yield None  # pragma: no cover
