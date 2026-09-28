@@ -13,9 +13,14 @@ from aip_canonica.models import Workbook
 
 
 class ExtractorRegistry:
-    """Registry maintaining known layout-specific extractors."""
+    """Registry maintaining known layout-specific extractors.
+
+    Extractors are registered and queried to find the best match for a given
+    workbook. Specialized extractors are prioritized over generic ones.
+    """
 
     def __init__(self, extractors: Sequence[Extractor] | None = None) -> None:
+        """Initialize registry with optional list of extractors."""
         self._extractors: list[Extractor] = list(extractors or [])
 
     def register(self, extractor: Extractor) -> None:
@@ -23,7 +28,10 @@ class ExtractorRegistry:
         self._extractors.append(extractor)
 
     def find_specialized_extractor(self, workbook: Workbook) -> Extractor | None:
-        """Find the first matching specialized (non-generic) extractor."""
+        """Find the first matching specialized (non-generic) extractor.
+
+        Specialized extractors are those that are not marked as generic.
+        """
         for extractor in self._extractors:
             if not getattr(extractor, "is_generic", False) and extractor.matches(workbook):
                 return extractor
@@ -32,7 +40,10 @@ class ExtractorRegistry:
     def find_generic_extractor(
         self, workbook: Workbook, *, document_type: Any | None = None
     ) -> Extractor | None:
-        """Find the first matching generic fallback extractor, optionally matching document_type."""
+        """Find the first matching generic fallback extractor, optionally matching document_type.
+
+        Generic extractors are those marked with 'is_generic = True'.
+        """
         for extractor in self._extractors:
             if getattr(extractor, "is_generic", False):
                 if document_type is None or extractor.document_type == document_type:
@@ -48,7 +59,7 @@ class ExtractorRegistry:
         return self.find_generic_extractor(workbook)
 
     def get_extractors(self) -> list[Extractor]:
-        """Return all registered extractors."""
+        """Return a copy of all registered extractors."""
         return list(self._extractors)
 
     def clear(self) -> None:
@@ -60,7 +71,11 @@ _DEFAULT_REGISTRY: ExtractorRegistry | None = None
 
 
 def get_default_registry() -> ExtractorRegistry:
-    """Return the global default ExtractorRegistry populated with built-in extractors."""
+    """Return the global default ExtractorRegistry populated with built-in extractors.
+
+    This registry includes extractors for common document types such as bank
+    statements, invoices, and ledgers.
+    """
     global _DEFAULT_REGISTRY
     if _DEFAULT_REGISTRY is None:
         _DEFAULT_REGISTRY = ExtractorRegistry(
@@ -75,5 +90,9 @@ def get_default_registry() -> ExtractorRegistry:
 
 
 def register_extractor(extractor: Extractor) -> None:
-    """Register an extractor into the global default registry."""
+    """Register an extractor into the global default registry.
+
+    This is useful for adding custom extractors that should be available
+    system-wide.
+    """
     get_default_registry().register(extractor)
