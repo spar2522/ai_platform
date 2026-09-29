@@ -15,9 +15,19 @@ class Workbook:
 
     Attributes:
         sheets: A list of Sheet objects that make up the document.
+
+    Methods:
+        __iter__: Iterates over the sheets.
+        __len__: Returns the number of sheets.
+        __getitem__: Accesses a sheet by index.
     """
 
     sheets: list[Sheet] = field(default_factory=list)
+
+    def __post_init__(self):
+        for sheet in self.sheets:
+            if not isinstance(sheet, Sheet):
+                raise TypeError(f"Each sheet must be an instance of Sheet, got {type(sheet)}")
 
     def __iter__(self):
         return iter(self.sheets)
@@ -27,3 +37,6 @@ class Workbook:
 
     def __getitem__(self, index: int) -> Sheet:
         return self.sheets[index]
+
+    def __repr__(self):
+        return f"Workbook(sheets={len(self.sheets)} sheets)"
