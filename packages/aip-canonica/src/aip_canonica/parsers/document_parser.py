@@ -25,4 +25,5 @@ class DocumentParser(ABC):
         Returns
         -------
         Workbook
+            The parsed workbook model.
         """
