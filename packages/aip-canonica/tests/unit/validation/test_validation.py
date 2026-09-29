@@ -20,8 +20,20 @@ def test_bank_statement_validation_success():
         opening_balance=Decimal("1000.00"),
         closing_balance=Decimal("1200.00"),
         transactions=[
-            Transaction(id="t1", date="2026-01-01", amount=Decimal("300.00"), direction=TransactionDirection.CREDIT, narration="In"),
-            Transaction(id="t2", date="2026-01-02", amount=Decimal("100.00"), direction=TransactionDirection.DEBIT, narration="Out"),
+            Transaction(
+                id="t1",
+                date="2026-01-01",
+                amount=Decimal("300.00"),
+                direction=TransactionDirection.CREDIT,
+                narration="In",
+            ),
+            Transaction(
+                id="t2",
+                date="2026-01-02",
+                amount=Decimal("100.00"),
+                direction=TransactionDirection.DEBIT,
+                narration="Out",
+            ),
         ],
     )
     result = BankStatementValidator().validate(stmt)
@@ -34,9 +46,15 @@ def test_bank_statement_validation_failure():
     stmt = BankStatement(
         id="s1",
         opening_balance=Decimal("1000.00"),
-        closing_balance=Decimal("9999.00"),  # Mismatch!
+        closing_balance=Decimal("9999.00"),  # Intentional mismatch for validation failure
         transactions=[
-            Transaction(id="t1", date="2026-01-01", amount=Decimal("300.00"), direction=TransactionDirection.CREDIT, narration="In"),
+            Transaction(
+                id="t1",
+                date="2026-01-01",
+                amount=Decimal("300.00"),
+                direction=TransactionDirection.CREDIT,
+                narration="In",
+            ),
         ],
     )
     result = BankStatementValidator().validate(stmt)
@@ -53,72 +71,114 @@ def test_bank_statement_validation_missing_balance_warning():
         transactions=[],
     )
     result = BankStatementValidator().validate(stmt)
-    assert result.is_valid  # Warnings do not invalidate
+    assert result.is_valid  # Warnings do not invalidate the validation result
     assert len(result.warnings) == 1
     assert result.warnings[0].code == "MISSING_OPENING_BALANCE"
 
 
 def test_invoice_validation_success_and_failure():
-    inv = Invoice(
+    valid_invoice = Invoice(
         id="i1",
         invoice_number="INV-1",
         invoice_date="2026-01-01",
         total_amount=Decimal("1180.00"),
         subtotal=Decimal("1000.00"),
-        lines=[InvoiceLine(id="l1", description="Service", amount=Decimal("1000.00"))],
-        taxes=[Tax(id="tax:1", tax_type="GST", amount=Decimal("180.00"))],
+        lines=[
+            InvoiceLine(
+                id="l1",
+                description="Service",
+                amount=Decimal("1000.00"),
+            ),
+        ],
+        taxes=[
+            Tax(
+                id="tax:1",
+                tax_type="GST",
+                amount=Decimal("180.00"),
+            ),
+        ],
     )
-    assert InvoiceValidator().validate(inv).is_valid
+    assert InvoiceValidator().validate(valid_invoice).is_valid
 
-    # Corrupt total
-    inv_bad = Invoice(
+    # Test with corrupted total amount
+    invalid_invoice = Invoice(
         id="i2",
         invoice_number="INV-2",
         invoice_date="2026-01-01",
         total_amount=Decimal("500.00"),
         subtotal=Decimal("1000.00"),
-        lines=[InvoiceLine(id="l1", description="Service", amount=Decimal("1000.00"))],
-        taxes=[Tax(id="tax:1", tax_type="GST", amount=Decimal("180.00"))],
+        lines=[
+            InvoiceLine(
+                id="l1",
+                description="Service",
+                amount=Decimal("1000.00"),
+            ),
+        ],
+        taxes=[
+            Tax(
+                id="tax:1",
+                tax_type="GST",
+                amount=Decimal("180.00"),
+            ),
+        ],
     )
-    bad_result = InvoiceValidator().validate(inv_bad)
+    bad_result = InvoiceValidator().validate(invalid_invoice)
     assert not bad_result.is_valid
     assert any(e.code == "TOTAL_AMOUNT_MISMATCH" for e in bad_result.errors)
 
 
 def test_ledger_validation_success_and_failure():
-    led = Ledger(
+    valid_ledger = Ledger(
         id="l1",
         name="Test",
         opening_balance=Decimal("500.00"),
         closing_balance=Decimal("700.00"),
         entries=[
-            LedgerEntry(id="e1", date="2026-01-01", narration="d", amount=Decimal("300.00"), direction=EntryDirection.DEBIT),
-            LedgerEntry(id="e2", date="2026-01-02", narration="c", amount=Decimal("100.00"), direction=EntryDirection.CREDIT),
+            LedgerEntry(
+                id="e1",
+                date="2026-01-01",
+                narration="d",
+                amount=Decimal("300.00"),
+                direction=EntryDirection.DEBIT,
+            ),
+            LedgerEntry(
+                id="e2",
+                date="2026-01-02",
+                narration="c",
+                amount=Decimal("100.00"),
+                direction=EntryDirection.CREDIT,
+            ),
         ],
     )
-    assert LedgerValidator().validate(led).is_valid
+    assert LedgerValidator().validate(valid_ledger).is_valid
 
-    # Corrupt closing
-    led_bad = Ledger(
+    # Test with corrupted closing balance
+    invalid_ledger = Ledger(
         id="l2",
         name="Test Bad",
         opening_balance=Decimal("500.00"),
         closing_balance=Decimal("9999.00"),
         entries=[
-            LedgerEntry(id="e1", date="2026-01-01", narration="d", amount=Decimal("100.00"), direction=EntryDirection.DEBIT),
+            LedgerEntry(
+                id="e1",
+                date="2026-01-01",
+                narration="d",
+                amount=Decimal("100.00"),
+                direction=EntryDirection.DEBIT,
+            ),
         ],
     )
-    bad_res = LedgerValidator().validate(led_bad)
+    bad_res = LedgerValidator().validate(invalid_ledger)
     assert not bad_res.is_valid
     assert any(e.code == "LEDGER_BALANCE_MISMATCH" for e in bad_res.errors)
 
 
-def test_validate_dispatcher():
+def test_validate_dispatcher_handles_bank_statement():
     stmt = BankStatement(
         id="s1",
         opening_balance=Decimal("100.00"),
         closing_balance=Decimal("100.00"),
         transactions=[],
     )
-    res = validate(stmt)
-    assert res.is_valid
+    validation_result = validate(stmt)
+    assert validation_result.is_valid
