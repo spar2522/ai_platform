@@ -14,4 +14,7 @@ def test_cell():
     )
 
     assert cell.value == 100
+    assert cell.location.sheet == "Sheet1"
+    assert cell.location.row == 1
+    assert cell.location.column == 1
     assert cell.location.address == "A1"
