@@ -10,7 +10,7 @@ from aip_canonica.parsers.document_parser import DocumentParser
 
 
 def _column_index_to_letter(col_idx: int) -> str:
-    """Convert 1-based column index to Excel-style column letter (1 -> 'A', 27 -> 'AA')."""
+    """Convert 1-based column index to Excel-style column letter (1 -> 'A', 26 -> 'Z', 27 -> 'AA')."""
     letters = ""
     while col_idx > 0:
         col_idx, remainder = divmod(col_idx - 1, 26)
@@ -19,7 +19,10 @@ def _column_index_to_letter(col_idx: int) -> str:
 
 
 class CsvParser(DocumentParser):
-    """Parses delimited CSV files into Canonica's Workbook representation."""
+    """Parses delimited CSV files into Canonica's Workbook representation.
+
+    Handles UTF-8 with BOM, Latin-1 encoding, delimiter detection, and cell address generation.
+    """
 
     def parse(self, path: Path) -> Workbook:
         path = Path(path)
@@ -55,8 +58,8 @@ class CsvParser(DocumentParser):
         for row_idx, row_values in enumerate(reader, start=1):
             row = Row(index=row_idx)
             for col_idx, val in enumerate(row_values, start=1):
-                # Clean stripped value or None
-                clean_val = val.strip() if val is not None else None
+                # Clean value by stripping whitespace
+                clean_val = val.strip()
                 cell = Cell(
                     value=clean_val,
                     location=CellLocation(
