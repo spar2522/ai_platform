@@ -2,8 +2,9 @@ from aip_canonica.models import Cell, CellLocation, Row
 
 
 def test_row():
-    """Test that a Row can be initialized with cells and that their properties are correctly set."""
+    """Test that a Row can be initialized with an index, that cells can be added, and that row and cell properties are correctly set."""
     row = Row(index=1)
+    assert row.index == 1
 
     cell = Cell(
         value="ABC",
