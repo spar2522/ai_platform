@@ -1,7 +1,7 @@
 from aip_canonica.models import Sheet, Workbook
 
 
-def test_workbook():
+def test_workbook_initialization_and_sheet_addition():
     """Test that a Workbook can be initialized and a Sheet can be added."""
     workbook = Workbook()
     sheet = Sheet(name="Statement")
