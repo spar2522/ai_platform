@@ -6,6 +6,7 @@ from aip_canonica.parsers.csv_parser import CsvParser
 
 
 def test_parse_standard_csv(standard_bank_statement_csv: Path):
+    """Test parsing a standard bank statement CSV file."""
     parser = CsvParser()
     wb = parser.parse(standard_bank_statement_csv)
 
@@ -18,6 +19,7 @@ def test_parse_standard_csv(standard_bank_statement_csv: Path):
 
 
 def test_csv_cell_location_and_values(tmp_path: Path):
+    """Test that cell values and locations are parsed correctly."""
     csv_file = tmp_path / "test.csv"
     csv_file.write_text("Name,Age,City\nAlice,30,New York\nBob,25,San Francisco\n")
 
@@ -39,6 +41,7 @@ def test_csv_cell_location_and_values(tmp_path: Path):
 
 
 def test_csv_empty_rows_and_cells(tmp_path: Path):
+    """Test that empty rows and cells are handled correctly."""
     csv_file = tmp_path / "empty_test.csv"
     csv_file.write_text("A,B\n,\n1,\n\n2,3\n")
 
@@ -46,13 +49,14 @@ def test_csv_empty_rows_and_cells(tmp_path: Path):
     sheet = wb.sheets[0]
 
     assert len(sheet.rows) == 5
-    # Row 2 is empty cells
+    # Row 2 (index 1) has empty cell in column A
     assert sheet.rows[1].cells[0].value == ""
-    # Row 4 is completely empty line
+    # Row 4 (index 3) is completely empty
     assert sheet.rows[3].cells == []
 
 
 def test_csv_custom_delimiter(tmp_path: Path):
+    """Test that CSV files with custom delimiters are parsed correctly."""
     csv_file = tmp_path / "semi.csv"
     csv_file.write_text("col1;col2;col3\nval1;val2;val3\n")
 
@@ -62,9 +66,14 @@ def test_csv_custom_delimiter(tmp_path: Path):
     assert len(sheet.rows) == 2
     assert sheet.rows[0].cells[0].value == "col1"
     assert sheet.rows[0].cells[1].value == "col2"
+    assert sheet.rows[0].cells[2].value == "col3"
+    assert sheet.rows[1].cells[0].value == "val1"
+    assert sheet.rows[1].cells[1].value == "val2"
+    assert sheet.rows[1].cells[2].value == "val3"
 
 
 def test_csv_empty_file(tmp_path: Path):
+    """Test that an empty CSV file is parsed correctly."""
     csv_file = tmp_path / "empty.csv"
     csv_file.write_text("")
 
