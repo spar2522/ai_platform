@@ -7,6 +7,9 @@ from .cell import Cell
 class Row:
     """
     Represents one physical row in a sheet.
+
+    The index corresponds to the row's position in the sheet (e.g., 0-based or 1-based
+    depending on implementation context).
     """
 
     index: int
