@@ -2,10 +2,8 @@ General Ledger Account Statement
 Ledger Name: Consulting Revenue
 Party Name: Global Clients Ltd
 Opening Balance: 100000.00
-
 Date,Particulars,Debit,Credit,Balance
 2026-04-05,Invoice INV-101 payment,,25000.00,125000.00
 2026-04-12,Invoice INV-102 payment,,35000.00,160000.00
 2026-04-20,Adjustment refund,10000.00,,150000.00
-
 Closing Balance: 150000.00
