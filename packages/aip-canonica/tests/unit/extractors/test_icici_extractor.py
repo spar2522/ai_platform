@@ -9,22 +9,24 @@ from aip_canonica.parsers.excel_parser import ExcelParser
 
 
 def test_icici_extractor_matching(icici_statement_path: Path, simple_workbook: Path):
+    """Test that the extractor correctly identifies ICICI workbooks and rejects others."""
     extractor = ICICIBankStatementExtractor()
     parser = ExcelParser()
 
-    icici_wb = parser.parse(icici_statement_path)
-    simple_wb = parser.parse(simple_workbook)
+    icici_workbook = parser.parse(icici_statement_path)
+    non_icici_workbook = parser.parse(simple_workbook)
 
-    assert extractor.matches(icici_wb) is True
-    assert extractor.matches(simple_wb) is False
+    assert extractor.matches(icici_workbook) is True
+    assert extractor.matches(non_icici_workbook) is False
 
 
 def test_icici_extractor_extraction_real_statement(icici_statement_path: Path):
+    """Test the extraction process on a real ICICI statement, verifying all metadata and transactions."""
     extractor = ICICIBankStatementExtractor()
     parser = ExcelParser()
-    wb = parser.parse(icici_statement_path)
+    icici_workbook = parser.parse(icici_statement_path)
 
-    statement = extractor.extract(wb, source_name=str(icici_statement_path))
+    statement = extractor.extract(icici_workbook, source_name=str(icici_statement_path))
 
     # Account metadata
     assert statement.account is not None
@@ -60,5 +62,4 @@ def test_icici_extractor_extraction_real_statement(icici_statement_path: Path):
     assert first.counterparty.name == "ANKIT KUMA"
 
     # Validation
-    val = statement.validate()
-    assert val.is_valid
+    assert statement.validate() is None
