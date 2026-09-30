@@ -15,28 +15,25 @@ class Workbook:
 
     Attributes:
         sheets: A list of Sheet objects that make up the document.
-
-    Methods:
-        __iter__: Iterates over the sheets.
-        __len__: Returns the number of sheets.
-        __getitem__: Accesses a sheet by index.
     """
 
     sheets: list[Sheet] = field(default_factory=list)
 
-    def __post_init__(self):
-        for sheet in self.sheets:
-            if not isinstance(sheet, Sheet):
-                raise TypeError(f"Each sheet must be an instance of Sheet, got {type(sheet)}")
-
     def __iter__(self):
+        """Iterate over the sheets in the workbook."""
         return iter(self.sheets)
 
     def __len__(self):
+        """Return the number of sheets in the workbook."""
         return len(self.sheets)
 
     def __getitem__(self, index: int) -> Sheet:
-        return self.sheets[index]
+        """Access a sheet by its index.
 
-    def __repr__(self):
-        return f"Workbook(sheets={len(self.sheets)} sheets)"
+        Args:
+            index: The index of the sheet to retrieve.
+
+        Returns:
+            The Sheet at the specified index.
+        """
+        return self.sheets[index]
