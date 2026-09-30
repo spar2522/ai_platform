@@ -1,4 +1,9 @@
-"""Party and Account entities participating in canonical financial graphs."""
+"""Party and Account entities participating in canonical financial graphs.
+
+These classes represent core domain models for entities and financial accounts
+within the canonical financial graph. They include attributes such as identifiers,
+contact information, and provenance tracking for data lineage and validation purposes.
+"""
 
 from __future__ import annotations
 
@@ -14,12 +19,12 @@ class Party:
 
     Attributes:
         id: Unique identifier for the party.
-        name: Full name of the party.
-        tax_id: Tax identification number (optional).
+        name: Full legal or official name of the party.
+        tax_id: Taxpayer Identification Number (optional).
         address: Physical or postal address (optional).
         phone: Contact phone number (optional).
         email: Contact email address (optional).
-        provenance: Metadata about the source of this data (optional).
+        provenance: Metadata tracking the origin and history of the data (optional).
     """
 
     id: str
@@ -32,11 +37,15 @@ class Party:
 
     @property
     def node_type(self) -> str:
-        """Type identifier for graph representation."""
+        """Return the type of graph node this instance represents."""
         return "Party"
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the Party instance to a dictionary."""
+        """Convert the Party instance to a dictionary representation.
+
+        Returns:
+            A dictionary containing all non-None attributes.
+        """
         data: dict[str, Any] = {
             "id": self.id,
             "node_type": self.node_type,
@@ -61,13 +70,13 @@ class Account:
 
     Attributes:
         id: Unique identifier for the account.
-        account_number: Identifier assigned by the financial institution.
+        account_number: The financial institution's account number.
         account_type: Type of account (e.g., savings, checking) (optional).
         institution_name: Name of the financial institution (optional).
         ifsc_code: Indian Financial System Code (optional).
         currency: Currency type (default: INR).
-        holder_id: Identifier of the party that holds the account (optional).
-        provenance: Metadata about the source of this data (optional).
+        holder_id: Identifier of the party holding the account (optional).
+        provenance: Metadata tracking the origin and history of the data (optional).
     """
 
     id: str
@@ -81,11 +90,15 @@ class Account:
 
     @property
     def node_type(self) -> str:
-        """Type identifier for graph representation."""
+        """Return the type of graph node this instance represents."""
         return "Account"
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the Account instance to a dictionary."""
+        """Convert the Account instance to a dictionary representation.
+
+        Returns:
+            A dictionary containing all non-None attributes.
+        """
         data: dict[str, Any] = {
             "id": self.id,
             "node_type": self.node_type,
