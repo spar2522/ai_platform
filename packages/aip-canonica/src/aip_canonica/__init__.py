@@ -43,6 +43,13 @@ from .models import (
     TransactionDirection,
     Workbook,
 )
+from .storage import (
+    LocalReferenceStorage,
+    SecureRemoteStorage,
+    SourceStorage,
+    StoredDocumentReference,
+    StructuredLocalStorage,
+)
 from .validation.result import Finding, Severity, ValidationResult
 from .validation.validator import FinancialValidator
 
@@ -103,21 +110,27 @@ __all__ = [
     "DatePeriod",
     "Money",
     "TransactionDirection",
+    # Storage
+    "SourceStorage",
+    "StoredDocumentReference",
+    "LocalReferenceStorage",
+    "StructuredLocalStorage",
+    "SecureRemoteStorage",
     # Extractors
     "Extractor",
     "ExtractorRegistry",
     "get_default_registry",
     # Validation
     "FinancialValidator",
-    "ValidationResult",
     "Finding",
     "Severity",
+    "ValidationResult",
     # Exceptions
     "CanonicaError",
     "CanonicaException",
-    "ParseError",
-    "UnsupportedDocumentError",
-    "UnknownDocumentError",
     "ExtractionError",
+    "ParseError",
+    "UnknownDocumentError",
+    "UnsupportedDocumentError",
     "ValidationError",
 ]
