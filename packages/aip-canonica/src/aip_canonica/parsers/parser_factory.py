@@ -13,29 +13,34 @@ if TYPE_CHECKING:
 
 
 class ParserFactory:
-    """Factory class for creating document parsers based on file suffix."""
+    """
+    Factory class for creating document parsers based on file suffix.
+    """
 
     @staticmethod
     def create(path: Path, *, ai: AI | None = None) -> DocumentParser:
-        """Create a DocumentParser instance based on the file's suffix.
+        """
+        Create a document parser instance based on the file's suffix.
 
         Args:
-            path: Path to the file.
-            ai: Optional AI instance for PDF parsing.
+            path: Path to the document file.
+            ai: Optional AI instance, required for PDF parsing.
 
         Returns:
-            DocumentParser: The appropriate parser for the file type.
+            DocumentParser: Instance of the appropriate parser.
 
         Raises:
-            ValueError: If the file type is not supported.
+            ValueError: If the file suffix is not supported.
         """
         suffix = path.suffix.lower()
 
         if suffix in {".csv", ".tsv"}:
             return CsvParser()
-        elif suffix in {".xls", ".xlsx"}:
+
+        if suffix in {".xls", ".xlsx"}:
             return ExcelParser()
-        elif suffix == ".pdf":
+
+        if suffix == ".pdf":
             return PdfParser(ai=ai)
-        else:
-            raise ValueError(f"Unsupported document type: {suffix}")
+
+        raise ValueError(f"Unsupported document type: {suffix}. Supported types are .csv, .tsv, .xls, .xlsx, and .pdf.")
