@@ -30,6 +30,7 @@ class DatePeriod:
     end_date: str
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary representation."""
         return {
             "start_date": self.start_date,
             "end_date": self.end_date,
@@ -44,6 +45,7 @@ class Money:
     currency: str = "INR"
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary representation."""
         return {
             "amount": str(self.amount),
             "currency": self.currency,
