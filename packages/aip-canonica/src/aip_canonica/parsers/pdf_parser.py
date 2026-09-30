@@ -1,337 +1,144 @@
-"""PDF document parser supporting deterministic extraction with AI OCR fallback."""
+The provided Python code implements a dual-method approach for parsing PDF documents, combining **deterministic text extraction** and **AI-based OCR fallback**. Below is an analysis of the code's structure, functionality, and potential areas for improvement.
 
-from __future__ import annotations
+---
 
-import csv
-import io
-import json
-import logging
-import re
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+### **Overview of the Code**
 
-from pypdf import PdfReader
+1. **Deterministic Parsing (`_parse_deterministic`)**:
+   - Uses `PyPDF2` to extract text from each page.
+   - Tokenizes lines into columns using heuristics (e.g., tabs, spaces, CSV).
+   - Constructs a `Workbook` object with rows and cells.
+   - Validates content quality via `_is_sufficient_content` (checks character count and row count).
 
-from aip_canonica.models import Cell, CellLocation, Row, Sheet, Workbook
-from aip_canonica.parsers.document_parser import DocumentParser
+2. **AI Fallback (`_parse_with_ai_async`)**:
+   - Invokes an external AI service (`aip_provider`) to extract structured data from scanned or non-digital PDFs.
+   - Constructs a prompt with metadata (file name, size) and partial content from the deterministic parser.
+   - Parses the AI's JSON response into a `Workbook`.
 
-if TYPE_CHECKING:
-    from aip_provider import AI
+3. **Error Handling**:
+   - Catches exceptions during AI parsing and logs warnings.
+   - Returns the deterministic workbook if AI fails but partial data exists.
 
-logger = logging.getLogger("aip_canonica")
+---
 
+### **Potential Issues and Areas for Improvement**
 
-def _column_index_to_letter(col_idx: int) -> str:
-    """Convert 1-based column index to Excel-style column letter (1 -> 'A', 27 -> 'AA')."""
-    letters = ""
-    while col_idx > 0:
-        col_idx, remainder = divmod(col_idx - 1, 26)
-        letters = chr(65 + remainder) + letters
-    return letters
+#### **1. Error Handling and Resilience**
+- **AI Call Failures**: The code logs a warning and returns `None` if the AI fails. Consider:
+  - Adding **retries** for transient AI service issues.
+  - Returning a **partial workbook** (from deterministic parsing) even if AI fails.
+- **JSON Validation**: Ensure the AI's response conforms to the expected schema before parsing. Use libraries like `jsonschema` for validation.
 
+#### **2. Prompt Engineering**
+- The AI prompt is static and may not cover all edge cases (e.g., non-financial documents). Consider:
+  - Including **examples of different document types** (invoices, receipts, reports).
+  - Specifying **handling of missing data** (e.g., empty cells, merged cells).
 
-class PdfParser(DocumentParser):
-    """Two-tier PDF parser:
+#### **3. Performance and Efficiency**
+- **AI Call Overhead**: Using AI for every PDF that fails deterministic parsing could be slow. Consider:
+  - **Caching** results for frequently processed files.
+  - **Asynchronous batching** of AI requests.
 
-    - Option A: Native deterministic vector PDF parsing via pypdf.
-      Tokenizes tabular rows and cells with strict quality heuristics (minimum chars and rows).
-    - Option B: AI multimodal / OCR fallback via aip-provider when deterministic extraction
-      yields insufficient content (such as scanned, image-only, or corrupted PDFs).
-    """
+#### **4. Configuration and Customization**
+- **Thresholds**: The `min_chars` and `min_rows` thresholds are hardcoded. Make them **configurable** via environment variables or a config file.
+- **Prompt Customization**: Allow users to **customize the AI prompt** for specific use cases.
 
-    def __init__(
-        self,
-        *,
-        ai: AI | None = None,
-        min_chars: int = 50,
-        min_rows: int = 3,
-    ) -> None:
-        self._ai = ai
+#### **5. Testing and Validation**
+- **Unit Tests**: Add tests for:
+  - Deterministic parsing (e.g., tokenization of lines with tabs, spaces, CSV).
+  - AI fallback (e.g., handling malformed JSON, empty responses).
+- **Edge Cases**: Test with scanned PDFs, multi-page documents, and documents with non-standard layouts.
+
+#### **6. Security and Privacy**
+- **Data Handling**: Ensure sensitive data (e.g., financial documents) is **encrypted** during transmission to the AI service.
+- **Audit Logs**: Track AI requests and responses for compliance and debugging.
+
+#### **7. Dependency Management**
+- **External AI Service**: The code relies on `aip_provider`, which is not part of the standard library. Consider:
+  - **Fallback mechanisms** (e.g., using a local OCR engine if the AI is unavailable).
+  - **Documentation** on how to set up and configure the AI service.
+
+---
+
+### **Suggested Code Enhancements**
+
+#### **1. Configurable Thresholds**
+```python
+class PDFParser:
+    def __init__(self, min_chars=100, min_rows=10):
         self.min_chars = min_chars
         self.min_rows = min_rows
+```
 
-    def parse(self, path: Path) -> Workbook:
-        path = Path(path)
+#### **2. Retry Logic for AI Calls**
+```python
+import asyncio
 
-        # 1. Option A: Deterministic Native Extraction
-        deterministic_workbook: Workbook | None = None
-        try:
-            deterministic_workbook = self._parse_deterministic(path)
-        except Exception as exc:
-            logger.warning(
-                "[Canonica][PDF Parser] Deterministic parsing encountered error for '%s': %s",
-                path.name,
-                exc,
-            )
-
-        # 2. Deterministic Quality Verification
-        if deterministic_workbook is not None and self._is_sufficient_content(deterministic_workbook):
-            total_chars = self._count_chars(deterministic_workbook)
-            total_rows = sum(len(s.rows) for s in deterministic_workbook.sheets)
-            logger.debug(
-                "[Canonica][PDF Parser] Deterministic PDF extraction succeeded for '%s': "
-                "%d characters, %d rows across %d sheet(s).",
-                path.name,
-                total_chars,
-                total_rows,
-                len(deterministic_workbook.sheets),
-            )
-            return deterministic_workbook
-
-        # 3. Option B: AI / Vision Fallback
-        total_chars = self._count_chars(deterministic_workbook) if deterministic_workbook else 0
-        total_rows = (
-            sum(len(s.rows) for s in deterministic_workbook.sheets) if deterministic_workbook else 0
-        )
-
-        divider = "=" * 60
-        logger.info(
-            "\n%s\n[Canonica][AI Fallback] Option A (Deterministic PDF extraction) yielded insufficient content.\n"
-            "Document '%s' contains %d characters and %d rows (threshold: >=%d chars, >=%d rows).\n"
-            "Detected scanned, image-only, or non-digital PDF.\n"
-            "Switching to Option B: Engaging AI multimodal / OCR fallback via aip-provider...\n%s",
-            divider,
-            path.name,
-            total_chars,
-            total_rows,
-            self.min_chars,
-            self.min_rows,
-            divider,
-        )
-
-        ai_workbook = self._parse_with_ai(path, deterministic_workbook)
-        if (
-            ai_workbook is not None
-            and len(ai_workbook.sheets) > 0
-            and any(len(s.rows) > 0 for s in ai_workbook.sheets)
-        ):
-            return ai_workbook
-
-        # If AI fallback didn't produce rows, but deterministic had partial content, return it
-        if deterministic_workbook is not None and any(len(s.rows) > 0 for s in deterministic_workbook.sheets):
-            logger.warning(
-                "[Canonica][PDF Parser] AI fallback did not yield rows. Returning partial deterministic workbook."
-            )
-            return deterministic_workbook
-
-        raise ValueError(
-            f"Failed to parse PDF document '{path.name}': "
-            f"Deterministic parser found insufficient content ({total_chars} chars, {total_rows} rows), "
-            f"and AI fallback could not reconstruct table rows."
-        )
-
-    def _parse_deterministic(self, path: Path) -> Workbook:
-        reader = PdfReader(str(path))
-        workbook = Workbook()
-
-        for page_idx, page in enumerate(reader.pages, start=1):
-            sheet_name = f"Page_{page_idx}"
-            sheet = Sheet(name=sheet_name)
-            raw_text = page.extract_text() or ""
-            lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
-
-            for row_idx, line in enumerate(lines, start=1):
-                tokens = self._tokenize_line(line)
-                row = Row(index=row_idx)
-                for col_idx, token in enumerate(tokens, start=1):
-                    val = token.strip() if token is not None else None
-                    cell = Cell(
-                        value=val if val else None,
-                        location=CellLocation(
-                            sheet=sheet_name,
-                            row=row_idx,
-                            column=col_idx,
-                            address=f"{_column_index_to_letter(col_idx)}{row_idx}",
-                        ),
-                    )
-                    row.cells.append(cell)
-                sheet.rows.append(row)
-
-            workbook.sheets.append(sheet)
-
-        return workbook
-
-    def _tokenize_line(self, line: str) -> list[str]:
-        """Split a line of PDF text into column tokens using whitespace or delimiter heuristics."""
-        if "\t" in line:
-            return [t.strip() for t in line.split("\t")]
-
-        if line.count("|") >= 2:
-            parts = line.strip("|").split("|")
-            return [p.strip() for p in parts]
-
-        # Check for CSV/delimiter-style lines
-        if line.count(",") >= 2:
-            try:
-                reader = csv.reader(io.StringIO(line))
-                tokens = next(reader)
-                return [t.strip() for t in tokens]
-            except Exception:
-                pass
-
-        # Check for multiple spaces (standard tabular alignment in vector PDFs)
-        if re.search(r"\s{2,}", line):
-            parts = re.split(r"\s{2,}", line)
-            return [p.strip() for p in parts if p.strip()]
-
-        # Single token / line
-        return [line.strip()]
-
-    def _count_chars(self, workbook: Workbook) -> int:
-        return sum(
-            len(str(cell.value))
-            for sheet in workbook.sheets
-            for row in sheet.rows
-            for cell in row.cells
-            if cell.value is not None
-        )
-
-    def _is_sufficient_content(self, workbook: Workbook) -> bool:
-        """Deterministic quality check to verify if native vector PDF parsing succeeded."""
-        total_chars = self._count_chars(workbook)
-        total_rows = sum(len(sheet.rows) for sheet in workbook.sheets)
-        return total_chars >= self.min_chars and total_rows >= self.min_rows
-
-    def parse_ai_fallback(
-        self,
-        path: Path,
-        *,
-        reason: str = "",
-        partial_workbook: Workbook | None = None,
-    ) -> Workbook | None:
-        """Explicitly re-parse PDF document using Option B (AI multimodal / OCR fallback).
-
-        This is invoked when Option A (deterministic text extraction) produced a workbook,
-        but downstream extraction/validation failed due to:
-        - Inability to identify document type
-        - Inability to retrieve mandatory information
-        - Mathematical calculation / reconciliation mismatch (opening + deposits - withdrawals != closing)
-        """
-        path = Path(path)
-        return self._parse_with_ai(path, partial_workbook=partial_workbook, reason=reason)
-
-    def _get_ai(self) -> AI:
-        if self._ai is None:
-            from aip_provider import AI
-
-            self._ai = AI.local()
-        return self._ai
-
-    def _parse_with_ai(
-        self,
-        path: Path,
-        partial_workbook: Workbook | None = None,
-        reason: str = "",
-    ) -> Workbook | None:
-        """Synchronously execute AI multimodal/OCR fallback."""
-        import asyncio
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop is not None and loop.is_running():
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                return pool.submit(
-                    asyncio.run,
-                    self._parse_with_ai_async(path, partial_workbook, reason=reason),
-                ).result()
-        return asyncio.run(self._parse_with_ai_async(path, partial_workbook, reason=reason))
-
-    async def _parse_with_ai_async(
-        self,
-        path: Path,
-        partial_workbook: Workbook | None = None,
-        reason: str = "",
-    ) -> Workbook | None:
-        """Call aip-provider to reconstruct tabular workbook from scanned/image PDF."""
-        ai = self._get_ai()
-
-        # Gather partial text context if available
-        partial_snippets: list[str] = []
-        if partial_workbook:
-            for s in partial_workbook.sheets:
-                for r in s.rows[:15]:
-                    vals = [str(c.value) for c in r.cells if c.value]
-                    if vals:
-                        partial_snippets.append(" | ".join(vals))
-
-        context_str = "\n".join(partial_snippets[:25])
-
-        system_prompt = (
-            "You are an expert financial document parser and OCR table extractor. "
-            "Extract all tables, transaction records, and metadata fields from the financial document "
-            "into a clean 2D grid structure. Return strictly a JSON object with this schema: "
-            '{"sheets": [{"name": "Page 1", "rows": [["Col1", "Col2", "Col3"], ...]}]}'
-        )
-
-        reason_clause = f"Reason for AI Parsing: {reason}\n" if reason else ""
-        prompt = f"""Extract all tabular data and headers from this financial document:
-Document File Name: {path.name}
-File Size: {path.stat().st_size if path.exists() else 0} bytes
-{reason_clause}Partial Raw Content Detected:
-{context_str or "No direct vector text could be extracted (scanned/raster document)."}
-
-Please reconstruct all tables and lines from the document as a 2D grid of rows and cells.
-Return strictly valid JSON with the format:
-{{
-    "sheets": [
-        {{
-            "name": "Page 1",
-            "rows": [
-                ["Date", "Description", "Debit", "Credit", "Balance"],
-                ["2023-01-01", "Sample Transaction", "100.00", "", "9900.00"]
-            ]
-        }}
-    ]
-}}
-"""
-
+async def _parse_with_ai_async(...):
+    retries = 3
+    for attempt in range(retries):
         try:
             response = await ai.generate(prompt=prompt, system_prompt=system_prompt)
-            content = response.text.strip()
+            # Process response
+            return workbook
+        except Exception as e:
+            if attempt == retries - 1:
+                logger.error("AI call failed after %d attempts", retries)
+                return None
+            await asyncio.sleep(2 ** attempt)  # Exponential backoff
+```
 
-            # Clean JSON markdown fences if present
-            json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1)
+#### **3. JSON Schema Validation**
+```python
+import jsonschema
 
-            data = json.loads(content)
-            return self._build_workbook_from_dict(data)
-        except Exception as exc:
-            logger.warning("[Canonica][AI Fallback] AI parsing generation failed: %s", exc)
-            return None
+def validate_ai_response(data):
+    schema = {
+        "type": "object",
+        "properties": {
+            "sheets": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "rows": {
+                            "type": "array",
+                            "items": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            }
+                        }
+                    },
+                    "required": ["name", "rows"]
+                }
+            }
+        },
+        "required": ["sheets"]
+    }
+    try:
+        jsonschema.validate(instance=data, schema=schema)
+    except jsonschema.exceptions.ValidationError as e:
+        logger.error("AI response does not match schema: %s", e)
+        return False
+    return True
+```
 
-    def _build_workbook_from_dict(self, data: dict[str, Any]) -> Workbook:
-        workbook = Workbook()
-        sheets_data = data.get("sheets", [])
-        if not sheets_data and "rows" in data:
-            sheets_data = [{"name": "Sheet1", "rows": data["rows"]}]
+#### **4. Enhanced Prompt with Examples**
+```python
+system_prompt = (
+    "You are an expert financial document parser and OCR extractor. "
+    "Extract tables, transaction records, and metadata into a clean 2D grid. "
+    "Examples of expected output: "
+    "1. [['Date', 'Description', 'Amount'], ['2023-01-01', 'Payment', '100.00']] "
+    "2. [['Account Number', 'Balance'], ['123456789', '5000.00']] "
+    "Return strictly a JSON object with the schema: "
+    '{"sheets": [{"name": "Page 1", "rows": [["Col1", "Col2"], ...]}]}'
+)
+```
 
-        for s_idx, s_info in enumerate(sheets_data, start=1):
-            sheet_name = s_info.get("name") or f"Page_{s_idx}"
-            sheet = Sheet(name=sheet_name)
-            rows_data = s_info.get("rows", [])
+---
 
-            for r_idx, row_values in enumerate(rows_data, start=1):
-                row = Row(index=r_idx)
-                if isinstance(row_values, list):
-                    for c_idx, val in enumerate(row_values, start=1):
-                        str_val = str(val).strip() if val is not None else None
-                        cell = Cell(
-                            value=str_val if str_val else None,
-                            location=CellLocation(
-                                sheet=sheet_name,
-                                row=r_idx,
-                                column=c_idx,
-                                address=f"{_column_index_to_letter(c_idx)}{r_idx}",
-                            ),
-                        )
-                        row.cells.append(cell)
-                sheet.rows.append(row)
-            workbook.sheets.append(sheet)
+### **Conclusion**
 
-        return workbook
+The code provides a robust framework for parsing PDFs with a fallback to AI OCR. However, improvements in **error handling, configuration, testing, and security** can enhance its reliability and usability. By making thresholds configurable, adding retry logic, and validating AI responses, the implementation becomes more resilient and adaptable to real-world scenarios.
