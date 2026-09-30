@@ -9,7 +9,7 @@ class CanonicaError(Exception):
     """Base exception for all Canonica errors."""
 
 
-CanonicaException = CanonicaError
+CanonicaException = CanonicaError  # Alias for backwards compatibility
 
 
 class UnsupportedDocumentError(CanonicaError):
