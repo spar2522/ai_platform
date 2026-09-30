@@ -8,7 +8,7 @@ from aip_canonica.models.ledger import EntryDirection
 from aip_canonica.parsers.csv_parser import CsvParser
 
 
-def test_matches_ledger_workbook(sample_ledger_csv: Path, sample_invoice_csv: Path):
+def test_ledger_extractor_matching(sample_ledger_csv: Path, sample_invoice_csv: Path):
     extractor = TabularLedgerExtractor()
     parser = CsvParser()
 
@@ -19,7 +19,7 @@ def test_matches_ledger_workbook(sample_ledger_csv: Path, sample_invoice_csv: Pa
     assert extractor.matches(invoice_workbook) is False
 
 
-def test_extract_ledger_data(sample_ledger_csv: Path):
+def test_ledger_extractor_extraction(sample_ledger_csv: Path):
     extractor = TabularLedgerExtractor()
     workbook = CsvParser().parse(sample_ledger_csv)
 
@@ -33,9 +33,11 @@ def test_extract_ledger_data(sample_ledger_csv: Path):
     assert ledger.closing_balance == Decimal("150000.00")
 
     assert len(ledger.entries) == 3
-    assert ledger.entries[0].amount == Decimal("25000.00")
-    assert ledger.entries[0].direction == EntryDirection.CREDIT
-    assert ledger.entries[2].amount == Decimal("10000.00")
-    assert ledger.entries[2].direction == EntryDirection.DEBIT
+    first_entry = ledger.entries[0]
+    third_entry = ledger.entries[2]
+    assert first_entry.amount == Decimal("25000.00")
+    assert first_entry.direction == EntryDirection.CREDIT
+    assert third_entry.amount == Decimal("10000.00")
+    assert third_entry.direction == EntryDirection.DEBIT
 
     assert ledger.validate().is_valid
