@@ -10,7 +10,7 @@ from aip_canonica.parsers.document_parser import DocumentParser
 
 
 def _column_index_to_letter(col_idx: int) -> str:
-    """Convert 1-based column index to Excel-style column letter (1 -> 'A', 26 -> 'Z', 27 -> 'AA')."""
+    """Convert 1-based column index to Excel-style column letter (1 -> 'A', 27 -> 'AA')."""
     letters = ""
     while col_idx > 0:
         col_idx, remainder = divmod(col_idx - 1, 26)
@@ -19,13 +19,9 @@ def _column_index_to_letter(col_idx: int) -> str:
 
 
 class CsvParser(DocumentParser):
-    """Parses delimited CSV files into Canonica's Workbook representation.
-
-    Handles UTF-8 with BOM, Latin-1 encoding, delimiter detection, and cell address generation.
-    """
+    """Parses delimited CSV files into Canonica's Workbook representation."""
 
     def parse(self, path: Path) -> Workbook:
-        path = Path(path)
         sheet_name = path.stem or "Sheet1"
 
         # Try reading with utf-8-sig (handles BOM), fall back to latin-1
@@ -45,7 +41,7 @@ class CsvParser(DocumentParser):
             workbook.sheets.append(sheet)
             return workbook
 
-        # Detect delimiter if possible, default to comma
+        # Use first 10 lines to detect delimiter, avoiding processing the entire file
         sample = "\n".join(lines[:10])
         try:
             dialect = csv.Sniffer().sniff(sample, delimiters=",\t;|")
@@ -58,7 +54,7 @@ class CsvParser(DocumentParser):
         for row_idx, row_values in enumerate(reader, start=1):
             row = Row(index=row_idx)
             for col_idx, val in enumerate(row_values, start=1):
-                # Clean value by stripping whitespace
+                # Clean stripped value
                 clean_val = val.strip()
                 cell = Cell(
                     value=clean_val,
