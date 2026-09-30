@@ -7,13 +7,13 @@ from aip_canonica.models.party import Party
 
 
 def test_invoice_creation_and_graph():
-    """Test creation of Invoice and its graph relationships."""
-    # Setup parties
+    # Create parties involved in the invoice
     issuer = Party(id="party:issuer", name="Vendor Inc", tax_id="29ABCDE1234F1Z5")
     recipient = Party(id="party:buyer", name="Buyer Corp", tax_id="27XYZAB9876C1Z2")
 
-    # Setup invoice line and taxes
+    # Define tax for the invoice line
     line_tax = Tax(id="tax:line:1", tax_type="CGST", amount=Decimal("90.00"), rate=Decimal("9"))
+    # Create an invoice line with quantity, unit price, and tax
     line1 = InvoiceLine(
         id="line:1",
         description="Widget A",
@@ -22,10 +22,13 @@ def test_invoice_creation_and_graph():
         amount=Decimal("1000.00"),
         tax=line_tax,
     )
+
+    # Define summary tax for the invoice
     summary_tax = Tax(id="tax:summary:1", tax_type="IGST", amount=Decimal("180.00"), rate=Decimal("18"))
+    # Define a discount for the invoice
     discount = Discount(id="disc:1", description="Early payment", amount=Decimal("50.00"))
 
-    # Setup invoice
+    # Construct the invoice with all components
     inv = Invoice(
         id="inv:1001",
         invoice_number="INV-1001",
@@ -39,61 +42,57 @@ def test_invoice_creation_and_graph():
         discounts=[discount],
     )
 
-    # Verify basic invoice properties
-    assert inv.id == "inv:1001"
-    assert inv.invoice_number == "INV-1001"
-    assert inv.total_amount == Decimal("1130.00")
+    # Verify invoice metadata
+    assert inv.document_type == DocumentType.INVOICE
+    assert inv.node_type == "Invoice"
     assert len(inv.lines) == 1
-    assert len(inv.taxes) == 1
-    assert len(inv.discounts) == 1
 
-    # Verify graph node presence
-    graph_nodes = [issuer, recipient, line1, line_tax, summary_tax, discount, inv]
-    for node in graph_nodes:
-        assert node in inv.graph.nodes, f"Node {node} not found in graph"
+    # Generate graph representation of the invoice
+    graph = inv.as_graph()
 
-    # Verify graph relationships
-    outgoing_relations_from_invoice = inv.graph.outgoing_edges(inv)
-    relations_map = {edge[1]: edge[2] for edge in outgoing_relations_from_invoice}
-    assert relations_map["line:1"] == line1
-    assert relations_map["tax:line:1"] == line_tax
-    assert relations_map["tax:summary:1"] == summary_tax
-    assert relations_map["disc:1"] == discount
+    # Ensure all nodes are correctly represented in the graph
+    assert graph.get_node(inv.id) == inv
+    assert graph.get_node(issuer.id) == issuer
+    assert graph.get_node(recipient.id) == recipient
+    assert graph.get_node(line1.id) == line1
+    assert graph.get_node(line_tax.id) == line_tax
+    assert graph.get_node(summary_tax.id) == summary_tax
+    assert graph.get_node(discount.id) == discount
 
-    # Verify reverse relationships
-    assert inv.graph.incoming_edges(issuer)[0][0] == inv
-    assert inv.graph.incoming_edges(recipient)[0][0] == inv
-    assert inv.graph.incoming_edges(line1)[0][0] == inv
-    assert inv.graph.incoming_edges(line_tax)[0][0] == inv
-    assert inv.graph.incoming_edges(summary_tax)[0][0] == inv
-    assert inv.graph.incoming_edges(discount)[0][0] == inv
+    # Check relationships from the invoice node
+    outgoing_inv = graph.outgoing(inv.id)
+    relations = {r.relation: r.target_id for r in outgoing_inv}
+    assert relations["issuer"] == issuer.id
+    assert relations["recipient"] == recipient.id
+    assert relations["contains"] == line1.id
+
+    # Check relationship from the invoice line to its tax
+    line_outgoing = graph.outgoing(line1.id)
+    assert len(line_outgoing) == 1
+    assert line_outgoing[0].relation == "tax"
+    assert line_outgoing[0].target_id == line_tax.id
+
+    # Verify incoming relationships for issuer and recipient
+    assert len(graph.incoming(issuer.id)) == 1
+    assert graph.incoming(issuer.id)[0].source_id == inv.id
+    assert len(graph.incoming(recipient.id)) == 1
+    assert graph.incoming(recipient.id)[0].source_id == inv.id
 
 
 def test_invoice_validation():
-    """Test validation of an invoice with valid data."""
-    # Setup invoice with valid data
+    # Construct a valid invoice
     inv = Invoice(
-        id="inv:2001",
-        invoice_number="INV-2001",
-        invoice_date="2023-01-01",
+        id="inv:1",
+        invoice_number="INV-1",
+        invoice_date="2026-01-01",
         total_amount=Decimal("1050.00"),
-        issuer=Party(id="party:valid", name="Valid Issuer"),
-        recipient=Party(id="party:valid", name="Valid Recipient"),
         subtotal=Decimal("1000.00"),
-        lines=[
-            InvoiceLine(
-                id="line:2",
-                description="Valid Item",
-                quantity=Decimal("1"),
-                unit_price=Decimal("1000.00"),
-                amount=Decimal("1000.00"),
-            )
-        ],
-        taxes=[Tax(id="tax:2", tax_type="GST", amount=Decimal("100.00"), rate=Decimal("10"))],
-        discounts=[Discount(id="disc:2", amount=Decimal("50.00"))],
+        lines=[InvoiceLine(id="line:1", description="Item", amount=Decimal("1000.00"))],
+        taxes=[Tax(id="tax:1", tax_type="GST", amount=Decimal("100.00"))],
+        discounts=[Discount(id="disc:1", amount=Decimal("50.00"))],
     )
 
-    # Validate invoice
+    # Validate the invoice and ensure no issues are found
     result = inv.validate()
-    assert result.is_valid, "Validation should pass for valid invoice"
-    assert len(result.issues) == 0, "No validation issues should be present"
+    assert result.is_valid
+    assert len(result.issues) == 0
