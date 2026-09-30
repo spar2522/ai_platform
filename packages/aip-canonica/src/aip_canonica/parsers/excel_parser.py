@@ -1,8 +1,6 @@
 from pathlib import Path
 
 from openpyxl import load_workbook
-from openpyxl.worksheet.worksheet import Worksheet
-from openpyxl.cell.cell import Cell
 
 from aip_canonica.models import (
     Workbook,
@@ -16,40 +14,42 @@ from .document_parser import DocumentParser
 
 
 class ExcelParser(DocumentParser):
-    """Parses Excel files into domain model objects representing workbooks, sheets, rows, and cells."""
+    """Parses Excel files into domain model objects (Workbook, Sheet, Row, Cell)."""
 
     def parse(
         self,
         path: Path,
     ) -> Workbook:
-        """Parse an Excel file located at the given path into a Workbook domain model object.
+        """
+        Parse an Excel file into a Workbook domain model object.
 
         Args:
             path: Path to the Excel file to parse.
 
         Returns:
-            A Workbook object containing parsed sheets, rows, and cells.
+            A Workbook object containing all parsed sheets, rows, and cells.
         """
         workbook = Workbook()
 
-        excel_workbook = load_workbook(
+        xl = load_workbook(
             filename=path,
             data_only=False,
         )
 
-        for worksheet in excel_workbook.worksheets:
+        for worksheet in xl.worksheets:
             workbook.sheets.append(self._parse_sheet(worksheet))
 
         return workbook
 
-    def _parse_sheet(self, worksheet: Worksheet) -> Sheet:
-        """Parse an Excel worksheet into a Sheet domain model object.
+    def _parse_sheet(self, worksheet) -> Sheet:
+        """
+        Convert an openpyxl Worksheet into a domain model Sheet object.
 
         Args:
             worksheet: The openpyxl Worksheet object to parse.
 
         Returns:
-            A Sheet object containing parsed rows and cells.
+            A Sheet object containing all parsed rows from the worksheet.
         """
         sheet = Sheet(
             name=worksheet.title,
@@ -70,14 +70,15 @@ class ExcelParser(DocumentParser):
         sheet_name: str,
         excel_row,
     ) -> Row:
-        """Parse an Excel row into a Row domain model object.
+        """
+        Convert an openpyxl row into a domain model Row object.
 
         Args:
             sheet_name: Name of the sheet containing the row.
-            excel_row: A tuple of openpyxl Cell objects representing the row's cells.
+            excel_row: Iterable of openpyxl Cell objects representing the row.
 
         Returns:
-            A Row object containing parsed cells and metadata.
+            A Row object containing all parsed cells from the row.
         """
         row = Row(
             index=excel_row[0].row,
@@ -96,16 +97,17 @@ class ExcelParser(DocumentParser):
     def _parse_cell(
         self,
         sheet_name: str,
-        excel_cell: Cell,
+        excel_cell,
     ) -> Cell:
-        """Parse an Excel cell into a Cell domain model object.
+        """
+        Convert an openpyxl Cell into a domain model Cell object.
 
         Args:
             sheet_name: Name of the sheet containing the cell.
-            excel_cell: An openpyxl Cell object representing the cell to parse.
+            excel_cell: openpyxl Cell object to parse.
 
         Returns:
-            A Cell object containing the cell's value and location metadata.
+            A Cell object containing the value and location of the cell.
         """
         return Cell(
             value=excel_cell.value,
