@@ -5,6 +5,7 @@ from aip_canonica.parsers import (
     CsvParser,
     ExcelParser,
     ParserFactory,
+    PdfParser,
 )
 
 
@@ -19,8 +20,6 @@ def test_csv_parser_selected():
 
 
 def test_pdf_parser_selected():
-    from aip_canonica.parsers import PdfParser
-
     parser = ParserFactory.create(Path("statement.pdf"))
     assert isinstance(parser, PdfParser)
 
