@@ -10,18 +10,18 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [
-    { name = "Arpit Ratan" }
+    { name = "Arpit Ratan", email = "arpit.ratan@outlook.com" }
 ]
 
 dependencies = [
-    "aip-provider",
-    "aip-utils",
-    "openpyxl>=3.1",
-    "pypdf>=6.19.0",
+    "aip-provider",  # Workspace dependency for document processing
+    "aip-utils",     # Shared utilities for AI integration
+    "openpyxl>=3.1", # Excel file handling
+    "pypdf>=6.19.0", # PDF parsing with vector extraction
 ]
 
 [tool.uv.sources]
-# Workspace dependencies
+# Workspace dependencies for local package resolution
 aip-provider = { workspace = true }
 aip-utils = { workspace = true }
 
@@ -32,8 +32,8 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [dependency-groups]
-# Development dependencies
+# Development dependencies for testing
 dev = [
-    "pytest>=9.0",
-    "pytest-asyncio>=1.0",
+    "pytest>=9.0",         # Testing framework
+    "pytest-asyncio>=1.0", # Async testing support
 ]
