@@ -1,3 +1,8 @@
+"""Parsers module for AIP Canonica.
+
+This module contains various document parsers and a factory for creating parser instances.
+"""
+
 from .csv_parser import CsvParser
 from .document_parser import DocumentParser
 from .excel_parser import ExcelParser
