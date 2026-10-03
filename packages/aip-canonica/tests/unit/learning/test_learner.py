@@ -10,7 +10,8 @@ from aip_provider.models import AIResponse
 
 
 @pytest.mark.asyncio
-async def test_strategy_learner_parses_ai_response():
+async def test_strategy_learner_parses_valid_ai_response():
+    """Test that StrategyLearner correctly parses a valid AI response with JSON format."""
     mock_ai = AsyncMock()
     mock_ai.generate.return_value = AIResponse(
         text="""```json
@@ -45,7 +46,8 @@ async def test_strategy_learner_parses_ai_response():
 
 
 @pytest.mark.asyncio
-async def test_strategy_learner_handles_malformed_json():
+async def test_strategy_learner_handles_non_json_ai_response():
+    """Test that StrategyLearner handles non-JSON AI responses gracefully."""
     mock_ai = AsyncMock()
     mock_ai.generate.return_value = AIResponse(
         text="I could not determine the layout format.",
