@@ -150,6 +150,7 @@ def understand(
     extractor: Extractor | None = None,
     registry: ExtractorRegistry | None = None,
     validate: bool = False,
+    learning_mode: bool = False,
     ai: AI | None = None,
 ) -> CanonicalDocument:
     """Convert a financial document into a generic, typed canonical financial model.
@@ -159,7 +160,9 @@ def understand(
         extractor: Optional explicit extractor instance to use.
         registry: Optional custom extractor registry (defaults to built-in registry).
         validate: If True, execute deterministic validation and raise ValidationError on failure.
-        ai: Optional configured aip-provider AI instance for Option B PDF multimodal fallback.
+        learning_mode: If True, engages the offline AI StrategyLearner when generic fallback
+            is used or when extraction fails, providing a report and candidate extractor code.
+        ai: Optional configured aip-provider AI instance for learning mode or Option B PDF fallback.
 
     Returns:
         A strongly typed CanonicalDocument (such as BankStatement, Invoice, Ledger),
@@ -175,7 +178,7 @@ def understand(
     source_uri = str(target_path)
 
     # 1. Attempt extraction on parsed workbook (Option A)
-    document, matched_name, _is_generic, failure_reasons = _try_extract_canonical_document(
+    document, matched_name, is_generic, failure_reasons = _try_extract_canonical_document(
         workbook,
         active_registry,
         extractor,
@@ -226,6 +229,7 @@ def understand(
                 if ai_doc is not None:
                     document = ai_doc
                     matched_name = ai_name
+                    is_generic = ai_is_gen
                     ai_fallback_triggered = True
                 else:
                     failure_reasons.extend(ai_reasons)
@@ -244,39 +248,117 @@ def understand(
                 f"Deterministic validation failed for '{target_path.name}': {error_msgs}"
             )
 
-        divider = "=" * 60
-        if ai_fallback_triggered:
-            logger.info(
-                "\n%s\n[Canonica][AI Fallback Succeeded] Document '%s' recovered via Option B (AI OCR Fallback) "
-                "and validated using extractor '%s' (Validation: PASSED).\n%s",
-                divider,
-                target_path.name,
-                matched_name,
-                divider,
-            )
-        else:
-            logger.info(
-                "\n%s\n[Canonica][Deterministic] 100%% deterministic extraction (0 AI calls).\n"
-                "Processed '%s' using extractor '%s' (Validation: PASSED).\n%s",
-                divider,
-                target_path.name,
-                matched_name,
-                divider,
-            )
-        return document
+        # Specialized / Explicit Extractor
+        if not is_generic:
+            divider = "=" * 60
+            if ai_fallback_triggered:
+                logger.info(
+                    "\n%s\n[Canonica][AI Fallback Succeeded] Document '%s' recovered via Option B (AI OCR Fallback) "
+                    "and validated using specialized extractor '%s' (Validation: PASSED).\n%s",
+                    divider,
+                    target_path.name,
+                    matched_name or "specialized",
+                    divider,
+                )
+            else:
+                logger.info(
+                    "\n%s\n[Canonica][Deterministic] 100%% deterministic extraction (0 AI calls, learning_mode=OFF).\n"
+                    "Processed using specialized extractor '%s' (Validation: PASSED).\n%s",
+                    divider,
+                    matched_name or "specialized",
+                    divider,
+                )
+            return document
 
-    # 4. Failure
+        # Generic Fallback Extractor Succeeded
+        if not learning_mode:
+            divider = "=" * 60
+            if ai_fallback_triggered:
+                logger.warning(
+                    "\n%s\n[Canonica][AI Fallback Succeeded] Document '%s' parsed via Option B (AI OCR Fallback) "
+                    "and validated using Generic Fallback extractor '%s' (Validation: PASSED).\n"
+                    "Note: A specialized extractor is not yet registered for this layout.\n%s",
+                    divider,
+                    target_path.name,
+                    matched_name or "generic",
+                    divider,
+                )
+            else:
+                logger.warning(
+                    "\n%s\n[Canonica][Notice] No AI was used (learning_mode=OFF).\n"
+                    "Document '%s' processed deterministically using Generic Fallback extractor '%s' (Validation: PASSED).\n"
+                    "Note: A specialized extractor is not yet registered for this layout. "
+                    "Enabling learning_mode=True would analyze if richer bank-specific metadata (e.g., counterparties, customer codes, branch details) can be extracted.\n%s",
+                    divider,
+                    target_path.name,
+                    matched_name or "generic",
+                    divider,
+                )
+            return document
+        else:
+            divider = "=" * 60
+            logger.info(
+                "\n%s\n[Canonica][AI Learner] Generic extraction passed with learning_mode=True. "
+                "Engaging AI Strategy Learner to analyze if a specialized extractor would capture richer metadata...\n%s",
+                divider,
+                divider,
+            )
+            from aip_canonica.learning.learner import StrategyLearner
+
+            learner = StrategyLearner(ai=ai)
+            report = learner.analyze_and_report(
+                workbook,
+                document_name=target_path.name,
+                baseline_document=document,
+                name=f"{target_path.stem}_strategy",
+            )
+            logger.info("\n%s", report.summary())
+            return document
+
+    # 4. Extraction / Validation Failed Entirely
     failure_msg = f"Failed to extract valid canonical document for '{target_path.name}'."
     if failure_reasons:
         failure_msg += f" Details: {'; '.join(failure_reasons)}"
 
-    if validate:
-        raise ValidationError(
-            f"Deterministic validation failed for '{target_path.name}': {failure_msg}"
+    if not learning_mode:
+        divider = "=" * 60
+        logger.error(
+            "\n%s\n[Canonica][Error] %s No valid extractor match or validation checks failed.\n"
+            "No AI was used (learning_mode=OFF). Enable learning_mode=True to inspect layout with AI and synthesize a specialized extractor.\n%s",
+            divider,
+            failure_msg,
+            divider,
         )
-    raise UnsupportedDocumentError(
-        f"No matching extractor found or validation failed for '{target_path.name}'."
-    )
+        if validate:
+            raise ValidationError(
+                f"Deterministic validation failed for '{target_path.name}': {failure_msg}"
+            )
+        raise UnsupportedDocumentError(
+            f"No matching extractor found or validation failed for '{target_path.name}'."
+        )
+    else:
+        divider = "=" * 60
+        logger.info(
+            "\n%s\n[Canonica][AI Learner] Extraction failed with learning_mode=True. "
+            "Engaging AI Strategy Learner to inspect layout and synthesize candidate extractor...\n%s",
+            divider,
+            divider,
+        )
+        from aip_canonica.learning.learner import StrategyLearner
+
+        learner = StrategyLearner(ai=ai)
+        report = learner.analyze_and_report(
+            workbook,
+            document_name=target_path.name,
+            baseline_document=None,
+            name=f"{target_path.stem}_strategy",
+        )
+        logger.info("\n%s", report.summary())
+        strat_name = report.strategy.name if report.strategy else "candidate_strategy"
+        raise ValidationError(
+            f"Extraction failed for '{target_path.name}'. AI Strategy Learner synthesized candidate strategy: '{strat_name}'.",
+            details=report,
+        )
 
 
 def validate(document: CanonicalDocument) -> ValidationResult:

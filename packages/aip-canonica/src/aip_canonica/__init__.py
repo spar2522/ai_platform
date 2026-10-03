@@ -43,6 +43,7 @@ from .models import (
     TransactionDirection,
     Workbook,
 )
+from .learning import LearnedStrategy, LearningReport, StrategyLearner
 from .validation.result import Finding, Severity, ValidationResult
 from .validation.validator import FinancialValidator
 
@@ -107,6 +108,10 @@ __all__ = [
     "Extractor",
     "ExtractorRegistry",
     "get_default_registry",
+    # Learning
+    "StrategyLearner",
+    "LearnedStrategy",
+    "LearningReport",
     # Validation
     "FinancialValidator",
     "ValidationResult",
