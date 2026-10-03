@@ -4,25 +4,19 @@ import pytest
 from aip_canonica.parsers import (
     CsvParser,
     ExcelParser,
+    PdfParser,
     ParserFactory,
 )
 
 
-def test_excel_parser_selected():
-    parser = ParserFactory.create(Path("statement.xlsx"))
-    assert isinstance(parser, ExcelParser)
-
-
-def test_csv_parser_selected():
-    parser = ParserFactory.create(Path("statement.csv"))
-    assert isinstance(parser, CsvParser)
-
-
-def test_pdf_parser_selected():
-    from aip_canonica.parsers import PdfParser
-
-    parser = ParserFactory.create(Path("statement.pdf"))
-    assert isinstance(parser, PdfParser)
+@pytest.mark.parametrize("file_path, expected_parser", [
+    ("statement.xlsx", ExcelParser),
+    ("statement.csv", CsvParser),
+    ("statement.pdf", PdfParser),
+])
+def test_parser_factory_selects_correct_parser(file_path, expected_parser):
+    parser = ParserFactory.create(Path(file_path))
+    assert isinstance(parser, expected_parser)
 
 
 def test_unsupported_parser_selected():
