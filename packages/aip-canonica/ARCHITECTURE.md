@@ -30,18 +30,18 @@ Physical Document (Excel, CSV)
 
 ### System Boundaries
 - **In Scope**:
-  - Raw physical parsing (Excel via `openpyxl`, CSV via standard library).
-  - Anchor-based matching and layout extraction.
-  - Generic, typed canonical financial models (`BankStatement`, `Ledger`, `Invoice`, `InterestCertificate`, `TDSCertificate`).
-  - Graph node and directed relationship construction.
-  - First-class provenance tracking (cells, rows, lines).
-  - Deterministic financial reconciliation.
-  - Offline, isolated AI-assisted layout strategy learning via `aip-provider`.
+  - **Parsing**: Raw physical parsing (Excel via `openpyxl`, CSV via standard library).
+  - **Extraction**: Anchor-based matching and layout extraction.
+  - **Modeling**: Generic, typed canonical financial models (`BankStatement`, `Ledger`, `Invoice`, `InterestCertificate`, `TDSCertificate`).
+  - **Graph Construction**: Graph node and directed relationship construction.
+  - **Provenance**: First-class provenance tracking (cells, rows, lines).
+  - **Validation**: Deterministic financial reconciliation.
+  - **AI Learning**: Offline, isolated AI-assisted layout strategy learning via `aip-provider`.
 - **Out of Scope**:
-  - Graph database storage / querying.
-  - Cross-document entity and account identity resolution.
-  - Legal, circular, or regulatory compliance rules engines.
-  - Heavyweight OCR or layout machine-learning models.
+  - **Storage**: Graph database storage / querying.
+  - **Identity Resolution**: Cross-document entity and account identity resolution.
+  - **Compliance**: Legal, circular, or regulatory compliance rules engines.
+  - **OCR/ML**: Heavyweight OCR or layout machine-learning models.
 
 ---
 
@@ -59,7 +59,7 @@ Adapts physical file formats into an in-memory tabular structure (`Workbook`, `S
 - `CanonicalDocument` (Protocol): Top-level document models providing `.as_graph()` and `.validate()`.
 - `CanonicalGraph`: An in-memory directed graph supporting outgoing discovery, incoming relationship discovery, and target resolution.
 - `Relationship`: Directed edge with `source_id`, `relation`, `target_id`, `target_type`, and `properties`.
-- Domain Models:
+- **Domain Models**:
   - `BankStatement`, `Transaction`
   - `Invoice`, `InvoiceLine`, `Tax`, `Discount`
   - `Ledger`, `LedgerEntry`
@@ -70,7 +70,7 @@ Adapts physical file formats into an in-memory tabular structure (`Workbook`, `S
 Converts physical workbooks into canonical documents deterministically.
 - `Extractor` (Protocol): Declares `name`, `document_type`, `matches(workbook)`, and `extract(workbook)`.
 - `ExtractorRegistry`: Maintains known strategies and matches documents before extraction.
-- Built-in extractors:
+- **Built-in Extractors**:
   - `ICICIBankStatementExtractor`: Handles complex multi-column statements with dynamic row offsets, metadata blocks, and summary footers.
   - `StandardBankStatementExtractor`: Handles standard tabular bank movements across CSV and Excel.
   - `TabularInvoiceExtractor`: Handles tabular invoices with lines, taxes, and totals.
@@ -84,9 +84,9 @@ Converts physical workbooks into canonical documents deterministically.
 - `validate()`: Top-level dispatcher.
 
 ### E. AI Learning Layer (`aip_canonica.learning`)
-- Completely isolated from deterministic runtime execution.
+- **Isolation**: Operates independently of the main execution flow.
 - `StrategyLearner`: Queries `aip_provider.AI` to inspect document samples and discover anchors and mappings for unknown layouts.
-- Output: `LearnedStrategy`, which can be converted into an extractor.
+- **Output**: `LearnedStrategy`, which can be converted into an extractor.
 
 ---
 
@@ -114,8 +114,8 @@ incoming_edges = graph.incoming("party:gstin:29ABC...")
 ## 4. Provenance Tracking
 
 Every entity holds a `Provenance` object referencing:
-- `source`: File path or document identifier.
-- `sheet`: Sheet name.
-- `row`, `column`, `address`: Exact coordinate (e.g. `B145`).
-- `cells`: Complete tuple of `CellLocation` records.
-- Interoperable with `aip_utils.Provenance`.
+- **Source**: File path or document identifier.
+- **Sheet**: Sheet name.
+- **Coordinates**: `row`, `column`, `address` (e.g. `B145`).
+- **Cells**: Complete tuple of `CellLocation` records.
+- **Interoperability**: Compatible with `aip_utils.Provenance` for consistent tracking across systems.
