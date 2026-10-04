@@ -62,9 +62,9 @@ __version__ = "0.2.0"
 
 __all__ = [
     # Core API
+    "parse_document",
     "understand",
     "validate",
-    "parse_document",
     "configure",
     # Models
     "CanonicalDocument",
