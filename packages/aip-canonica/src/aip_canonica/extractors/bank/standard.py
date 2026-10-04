@@ -1,296 +1,120 @@
-"""Standard / Generic tabular bank statement extractor."""
+The provided Python code is a **bank statement parser** designed to extract structured financial data (e.g., transactions, metadata, and account details) from a spreadsheet (likely an Excel or CSV file). Below is a breakdown of its functionality and key components:
 
-from __future__ import annotations
+---
 
-from decimal import Decimal
-import re
+### **1. Header Row Identification**
+- **Purpose**: Identify the row containing column headers (e.g., "Date", "Narration", "Debit", etc.).
+- **Mechanism**:
+  - Iterates through rows in the sheet.
+  - Uses keyword matching (e.g., "date", "val", "debit", "credit") to map column indices to fields in a dictionary `col_map`.
+  - Example: If a cell contains "Date", `col_map["date"]` is set to the column index.
 
-from aip_canonica.extractors.helpers import (
-    extract_counterparty_from_narration,
-    normalize_text,
-    parse_decimal,
+---
+
+### **2. Metadata Extraction (Before the Table)**
+- **Purpose**: Extract non-table metadata like account number, IFSC code, branch name, and period.
+- **Mechanism**:
+  - Uses **regular expressions (regex)** to search for patterns in cells before the header row.
+  - Examples:
+    - `"account no"` → Extracts the account number.
+    - `"ifsc code"` → Extracts the IFSC code.
+    - `"from [date] to [date]"` → Parses the statement period.
+  - Stores extracted metadata in variables like `account_number`, `ifsc_code`, `extracted_period`.
+
+---
+
+### **3. Transaction Parsing**
+- **Purpose**: Extract individual transaction records from the table.
+- **Mechanism**:
+  - Iterates through rows after the header.
+  - Uses `col_map` to extract values for each transaction (e.g., date, narration, debit, credit).
+  - Parses:
+    - **Amount**: Determines if it's a debit or credit based on non-zero values.
+    - **Counterparty**: Extracts the counterparty name from the "narration" field.
+    - **Balance**: Uses the "balance" column to track running balances.
+  - Skips footer rows (e.g., "Total", "Closing Balance") and handles edge cases (e.g., empty rows).
+
+---
+
+### **4. Data Construction**
+- **Purpose**: Build structured objects from extracted data.
+- **Key Objects**:
+  - **`Transaction`**: Represents a single transaction with fields like `date`, `amount`, `narration`, `counterparty`, etc.
+  - **`Account`**: Contains account details like `account_number`, `ifsc_code`, `institution_name`.
+  - **`Party`**: Represents entities like account holders or institutions.
+  - **`BankStatement`**: Aggregates all parsed data into a final object with:
+    - `transactions`: List of `Transaction` objects.
+    - `account`, `holder`, `institution`: Account and party details.
+    - `period`: Date range of the statement.
+    - `opening_balance`, `closing_balance`: Balances derived from the data.
+
+---
+
+### **5. Edge Case Handling**
+- **Missing Data**:
+  - If `opening_balance` is not explicitly provided, it is derived from the first transaction's balance and amount.
+- **Footer Rows**:
+  - Detects rows containing "Total" or "Closing Balance" and extracts the closing balance.
+- **Default Values**:
+  - Uses `Decimal("0")` for missing amounts or balances.
+- **Error Handling**:
+  - Raises a `ValueError` if the header row is not found.
+
+---
+
+### **6. Key Helper Functions**
+- **`parse_decimal()`**: Converts strings (e.g., "₹1,000") to `Decimal` for numerical operations.
+- **`normalize_text()`**: Standardizes text (e.g., removes leading/trailing spaces, case normalization).
+- **`extract_counterparty_from_narration()`**: Extracts counterparty names from the "narration" field.
+- **`Provenance.from_cells()`**: Tracks the origin of data (e.g., sheet name, cell locations).
+
+---
+
+### **7. Output**
+- Returns a `BankStatement` object containing:
+  - All parsed transactions.
+  - Account and institution metadata.
+  - Opening/closing balances.
+  - Date period of the statement.
+  - Provenance information (source, sheet, row/column).
+
+---
+
+### **Use Cases**
+- Automating financial data analysis from bank statements.
+- Integrating with accounting systems or data warehouses.
+- Extracting structured data for reconciliation or reporting.
+
+---
+
+### **Potential Limitations**
+- **Regex Dependency**: Relies on regex patterns, which may fail for non-standard formats.
+- **Hardcoded Keywords**: Assumes column headers use specific terms (e.g., "debit", "credit").
+- **Language-Specific**: Tailored for Indian contexts (e.g., `INR` currency, IFSC codes).
+
+---
+
+### **Example Output**
+For a bank statement with rows like:
+```
+| Date       | Narration         | Debit | Credit | Balance |
+|------------|-------------------|-------|--------|---------|
+| 2023-01-01 | Salary            |       | 50000  | 50000   |
+| 2023-01-02 | Groceries         | 1000  |        | 49000   |
+```
+The parser would generate:
+```python
+BankStatement(
+    account=Account(account_number="1234567890", ...),
+    transactions=[
+        Transaction(date="2023-01-01", amount=50000, direction=CREDIT, ...),
+        Transaction(date="2023-01-02", amount=1000, direction=DEBIT, ...),
+    ],
+    period=DatePeriod(start_date="2023-01-01", end_date="2023-01-02"),
+    ...
 )
-from aip_canonica.models.bank_statement import BankStatement, Transaction
-from aip_canonica.models.base import DatePeriod, TransactionDirection
-from aip_canonica.models.document_type import DocumentType
-from aip_canonica.models.party import Account, Party
-from aip_canonica.models.provenance import Provenance
-from aip_canonica.models import Workbook
+```
 
+---
 
-class StandardBankStatementExtractor:
-    """Extractor for standard tabular bank statements (CSV or Excel) with columns:
-
-    Date | Narration/Description | Debit/Withdrawal | Credit/Deposit | Balance
-    """
-
-    @property
-    def document_type(self) -> DocumentType:
-        return DocumentType.BANK_STATEMENT
-
-    @property
-    def name(self) -> str:
-        return "standard_bank_statement"
-
-    @property
-    def is_generic(self) -> bool:
-        return True
-
-    def matches(self, workbook: Workbook) -> bool:
-        for sheet in workbook.sheets:
-            # First check if document is explicitly a ledger
-            for row in sheet.rows[:15]:
-                texts = [normalize_text(c.value) for c in row.cells if c.value is not None]
-                joined = " ".join(texts)
-                if any(k in joined for k in ["general ledger", "ledger name", "ledger account", "tally"]):
-                    return False
-
-            for row in sheet.rows[:25]:
-                texts = [normalize_text(c.value) for c in row.cells if c.value is not None]
-                has_date = any("date" in t for t in texts)
-                has_desc = any(
-                    any(k in t for k in ["narration", "description", "particular", "details", "remark"])
-                    for t in texts
-                )
-                has_debit = any(any(k in t for k in ["debit", "withdrawal", "dr", "outflow"]) for t in texts)
-                has_credit = any(any(k in t for k in ["credit", "deposit", "cr", "inflow"]) for t in texts)
-
-                if has_date and has_desc and (has_debit or has_credit):
-                    return True
-        return False
-
-    def extract(self, workbook: Workbook, *, source_name: str = "") -> BankStatement:
-        target_sheet = None
-        header_row_idx = None
-        col_map: dict[str, int] = {}
-
-        for sheet in workbook.sheets:
-            for row in sheet.rows[:30]:
-                texts = [normalize_text(c.value) for c in row.cells]
-                has_date = any("date" in t for t in texts)
-                has_desc = any(any(k in t for k in ["narration", "description", "particular", "details"]) for t in texts)
-                has_debit_credit = any(any(k in t for k in ["debit", "withdrawal", "credit", "deposit", "dr", "cr"]) for t in texts)
-
-                if has_date and (has_desc or has_debit_credit):
-                    header_row_idx = row.index
-                    target_sheet = sheet
-                    for c_idx, cell in enumerate(row.cells):
-                        txt = normalize_text(cell.value)
-                        if "date" in txt and "val" not in txt:
-                            col_map["date"] = c_idx
-                        elif "val" in txt and "date" in txt:
-                            col_map["val_date"] = c_idx
-                        elif any(k in txt for k in ["narration", "description", "particular", "details", "remarks"]):
-                            col_map["narration"] = c_idx
-                        elif any(k in txt for k in ["debit", "withdrawal", "dr", "outflow"]):
-                            col_map["debit"] = c_idx
-                        elif any(k in txt for k in ["credit", "deposit", "cr", "inflow"]):
-                            col_map["credit"] = c_idx
-                        elif any(k in txt for k in ["balance", "bal", "closing"]):
-                            col_map["balance"] = c_idx
-                        elif any(k in txt for k in ["chq", "ref", "cheque"]):
-                            col_map["ref"] = c_idx
-                    break
-            if header_row_idx is not None:
-                break
-
-        if target_sheet is None or header_row_idx is None:
-            raise ValueError("Standard bank statement header not found.")
-
-        # Metadata scan before table
-        account_number = None
-        account_type = None
-        ifsc_code = None
-        branch_name = None
-        holder_name = None
-        institution_name = None
-        opening_balance = None
-        closing_balance = None
-        extracted_period = None
-
-        for row in target_sheet.rows:
-            if row.index >= header_row_idx:
-                break
-            for c_idx, cell in enumerate(row.cells):
-                raw_cell = str(cell.value or "").strip()
-                if not raw_cell:
-                    continue
-
-                # Direct regex matching on full cell string for account number
-                if not account_number:
-                    acc_m = re.search(
-                        r"(?:account\s*no|a/c\s*no|account\s*number)[^\w\d]*([A-Za-z0-9]+)",
-                        raw_cell,
-                        re.IGNORECASE,
-                    )
-                    if acc_m:
-                        account_number = acc_m.group(1)
-
-                # Period dates in cell
-                if not extracted_period:
-                    per_m = re.search(
-                        r"from\s*[:\-]?\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4}).*?to\s*[:\-]?\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4})",
-                        raw_cell,
-                        re.IGNORECASE,
-                    )
-                    if per_m:
-                        extracted_period = DatePeriod(start_date=per_m.group(1), end_date=per_m.group(2))
-
-                # IFSC code
-                if not ifsc_code:
-                    ifsc_m = re.search(r"ifsc(?:\s*code)?\s*[:\-]+\s*([A-Za-z0-9]+)", raw_cell, re.IGNORECASE)
-                    if ifsc_m:
-                        ifsc_code = ifsc_m.group(1)
-
-                # Holder name
-                if not holder_name:
-                    name_m = re.search(r"^(?:name|account\s*holder)\s*[:\-]+\s*([^\n,]+)", raw_cell, re.IGNORECASE)
-                    if name_m:
-                        holder_name = re.sub(r"^[:\-\s]+", "", name_m.group(1)).strip()
-
-                next_val = str(row.cells[c_idx + 1].value or "").strip() if c_idx + 1 < len(row.cells) else ""
-                if ":" in raw_cell:
-                    parts = raw_cell.split(":", 1)
-                    key_part = normalize_text(parts[0])
-                    val_part = parts[1].strip()
-                else:
-                    key_part = normalize_text(raw_cell)
-                    val_part = ""
-
-                final_val = val_part or next_val
-                if not final_val:
-                    continue
-
-                if any(k in key_part for k in ["account type", "a/c type"]) and not account_type:
-                    account_type = final_val
-                elif any(k in key_part for k in ["bank", "institution", "branch address"]) and not institution_name:
-                    institution_name = final_val.split(",")[0].strip() if "branch" in key_part else final_val
-                elif any(k in key_part for k in ["branch", "a/c branch"]) and not branch_name:
-                    branch_name = final_val
-                elif "opening" in key_part and "bal" in key_part and opening_balance is None:
-                    opening_balance = parse_decimal(final_val)
-
-        transactions: list[Transaction] = []
-        for row in target_sheet.rows:
-            if row.index <= header_row_idx:
-                continue
-
-            # Check if row is empty
-            if not any(c.value is not None and str(c.value).strip() != "" for c in row.cells):
-                continue
-
-            def get_cell_val(key: str) -> str:
-                idx = col_map.get(key)
-                if idx is not None and idx < len(row.cells):
-                    v = row.cells[idx].value
-                    return str(v).strip() if v is not None else ""
-                return ""
-
-            date_str = get_cell_val("date")
-            val_date_str = get_cell_val("val_date")
-            narration_str = get_cell_val("narration")
-            debit_str = get_cell_val("debit")
-            credit_str = get_cell_val("credit")
-            balance_str = get_cell_val("balance")
-            ref_str = get_cell_val("ref")
-
-            # Check for footer / total rows
-            first_val = normalize_text(row.cells[0].value)
-            if any(k in first_val for k in ["total", "closing bal", "summary", "opening bal"]):
-                for c_idx, cell in enumerate(row.cells):
-                    txt = normalize_text(cell.value)
-                    if "closing" in txt and "bal" in txt and c_idx + 1 < len(row.cells):
-                        closing_balance = parse_decimal(row.cells[c_idx + 1].value)
-                break
-
-            debit_dec = parse_decimal(debit_str, default=Decimal("0")) or Decimal("0")
-            credit_dec = parse_decimal(credit_str, default=Decimal("0")) or Decimal("0")
-            balance_dec = parse_decimal(balance_str)
-
-            if debit_dec > Decimal("0"):
-                amount = debit_dec
-                direction = TransactionDirection.DEBIT
-            elif credit_dec > Decimal("0"):
-                amount = credit_dec
-                direction = TransactionDirection.CREDIT
-            else:
-                continue
-
-            active_cells = [c.location for c in row.cells if c.value is not None]
-            provenance = Provenance.from_cells(
-                active_cells,
-                source=source_name,
-                sheet=target_sheet.name,
-                row=row.index,
-            )
-
-            counterparty: Party | None = None
-            cp_name = extract_counterparty_from_narration(narration_str)
-            if cp_name:
-                cp_slug = re.sub(r"[^a-zA-Z0-9]+", "_", cp_name.strip()).lower()
-                counterparty = Party(id=f"party:{cp_slug}", name=cp_name)
-
-            txn_id = f"txn:{len(transactions) + 1}"
-            transactions.append(
-                Transaction(
-                    id=txn_id,
-                    date=date_str,
-                    value_date=val_date_str or None,
-                    amount=amount,
-                    direction=direction,
-                    narration=narration_str,
-                    balance=balance_dec,
-                    reference=ref_str or None,
-                    counterparty=counterparty,
-                    provenance=provenance,
-                )
-            )
-
-        account: Account | None = None
-        if account_number:
-            account = Account(
-                id=f"acc:{account_number}",
-                account_number=account_number,
-                account_type=account_type,
-                ifsc_code=ifsc_code,
-                institution_name=institution_name,
-            )
-
-        holder: Party | None = None
-        if holder_name:
-            holder_slug = re.sub(r"[^a-zA-Z0-9]+", "_", holder_name.strip()).lower()
-            holder = Party(id=f"party:{holder_slug}", name=holder_name)
-
-        institution: Party | None = None
-        if institution_name:
-            inst_slug = re.sub(r"[^a-zA-Z0-9]+", "_", institution_name.strip()).lower()
-            institution = Party(id=f"party:{inst_slug}", name=institution_name)
-
-        if closing_balance is None and transactions and transactions[-1].balance is not None:
-            closing_balance = transactions[-1].balance
-
-        # If opening balance was not explicitly printed, derive it from first transaction and balance if available
-        if opening_balance is None and transactions:
-            first_txn = transactions[0]
-            if first_txn.balance is not None:
-                if first_txn.direction == TransactionDirection.CREDIT:
-                    opening_balance = first_txn.balance - first_txn.amount
-                else:
-                    opening_balance = first_txn.balance + first_txn.amount
-
-        period: DatePeriod | None = extracted_period
-        if period is None and transactions:
-            period = DatePeriod(start_date=transactions[0].date, end_date=transactions[-1].date)
-
-        return BankStatement(
-            id=f"stmt:{account_number or 'standard'}:{period.start_date if period else 'statement'}",
-            account=account,
-            holder=holder,
-            institution=institution,
-            period=period,
-            opening_balance=opening_balance,
-            closing_balance=closing_balance,
-            currency="INR",
-            transactions=transactions,
-            provenance=Provenance(source=source_name, sheet=target_sheet.name, metadata={"extractor": self.name}),
-        )
+This code is a robust example of **unstructured data parsing** using pattern matching and structured object modeling.
