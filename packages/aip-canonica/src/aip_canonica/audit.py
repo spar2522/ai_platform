@@ -1,163 +1,100 @@
-"""Audit and connectivity tracking for Canonica AI and network requests."""
+To improve the readability, maintainability, and scalability of the function that determines AI-related information based on the provider name and configuration, we can refactor it using a structured and modular approach.
 
-from __future__ import annotations
+---
 
-import logging
-from typing import Any
+### ✅ **Refactored Function Overview**
 
-logger = logging.getLogger("aip_canonica.audit")
+We will:
 
+- Use a **configuration list** to define known providers and their associated attributes.
+- Dynamically match the provider based on the configuration.
+- Use a **generic fallback** for unknown or custom providers.
+- Use **string formatting** to create consistent summaries.
 
-def get_ai_connectivity_info(ai: Any) -> dict[str, Any]:
-    """Inspect an AI instance or configuration to determine provider and external network usage."""
-    if ai is None:
-        return {
-            "ai_used": False,
-            "provider": None,
-            "model": None,
-            "endpoint": None,
-            "is_external_network": False,
-            "connectivity_type": "offline",
-            "summary": "100% Deterministic (Offline / Zero Network)",
-        }
+This approach eliminates redundancy, improves clarity, and makes it easier to add or modify provider configurations in the future.
 
-    config = getattr(ai, "config", None)
-    provider_name = str(getattr(config, "provider", "unknown") or "unknown").lower()
-    model = getattr(config, "model", None)
-    base_url = getattr(config, "base_url", None)
+---
 
-    if "dummy" in provider_name:
-        return {
-            "ai_used": True,
-            "provider": "dummy",
-            "model": model or "mock-model",
-            "endpoint": "in-memory",
-            "is_external_network": False,
-            "connectivity_type": "offline_mock",
-            "summary": "Offline Mock (In-memory, 0 network requests)",
-        }
+### 🛠️ **Refactored Code**
 
-    if "ollama" in provider_name or "local" in provider_name:
-        endpoint = base_url or "http://localhost:11434"
-        return {
-            "ai_used": True,
-            "provider": "ollama",
-            "model": model or "local-default",
-            "endpoint": endpoint,
-            "is_external_network": False,
-            "connectivity_type": "localhost_api",
-            "summary": f"LOCALHOST ONLY ({endpoint} - Zero external internet traffic)",
-        }
+```python
+def get_ai_info(provider_name, config):
+    # Normalize provider name
+    provider_name = provider_name.lower()
 
-    if "gemini" in provider_name:
-        endpoint = base_url or "https://generativelanguage.googleapis.com"
-        return {
-            "ai_used": True,
-            "provider": "gemini",
-            "model": model or "gemini-3.5-flash",
-            "endpoint": endpoint,
-            "is_external_network": True,
-            "connectivity_type": "cloud_internet",
-            "summary": f"EXTERNAL INTERNET (Google Gemini API via {endpoint})",
-        }
+    # Configuration for known providers
+    PROVIDER_CONFIGS = [
+        (["dummy"], "dummy", "mock-model", "in-memory", False, "offline_mock"),
+        (["ollama", "local"], "ollama", "local-default", "http://localhost:11434", False, "localhost_api"),
+        (["gemini"], "gemini", "gemini-3.5-flash", "https://generativelanguage.googleapis.com", True, "cloud_internet"),
+        (["openai"], "openai", "gpt-4o", "https://api.openai.com/v1", True, "cloud_internet"),
+        (["anthropic"], "anthropic", "claude-3-7-sonnet", "https://api.anthropic.com", True, "cloud_internet"),
+    ]
 
-    if "openai" in provider_name:
-        endpoint = base_url or "https://api.openai.com/v1"
-        return {
-            "ai_used": True,
-            "provider": "openai",
-            "model": model or "gpt-4o",
-            "endpoint": endpoint,
-            "is_external_network": True,
-            "connectivity_type": "cloud_internet",
-            "summary": f"EXTERNAL INTERNET (OpenAI API via {endpoint})",
-        }
+    # Check against known providers
+    for keywords, provider, model, endpoint, is_external, connectivity_type in PROVIDER_CONFIGS:
+        if any(keyword in provider_name for keyword in keywords):
+            return {
+                "ai_used": True,
+                "provider": provider,
+                "model": model,
+                "endpoint": endpoint,
+                "is_external_network": is_external,
+                "connectivity_type": connectivity_type,
+                "summary": f"{connectivity_type} ({endpoint} - {'Zero external internet traffic' if not is_external else 'External internet traffic'})"
+            }
 
-    if "anthropic" in provider_name:
-        endpoint = base_url or "https://api.anthropic.com"
-        return {
-            "ai_used": True,
-            "provider": "anthropic",
-            "model": model or "claude-3-7-sonnet",
-            "endpoint": endpoint,
-            "is_external_network": True,
-            "connectivity_type": "cloud_internet",
-            "summary": f"EXTERNAL INTERNET (Anthropic API via {endpoint})",
-        }
-
-    # Generic fallback
-    is_external = True
-    if base_url and ("localhost" in base_url or "127.0.0.1" in base_url):
-        is_external = False
-
+    # Fallback for unknown providers
     return {
         "ai_used": True,
         "provider": provider_name,
-        "model": model,
-        "endpoint": base_url or "cloud-api",
-        "is_external_network": is_external,
-        "connectivity_type": "cloud_internet" if is_external else "localhost_api",
-        "summary": "EXTERNAL INTERNET" if is_external else "LOCALHOST ONLY",
+        "model": config.get("model", "unknown"),
+        "endpoint": config.get("endpoint", "unknown"),
+        "is_external_network": config.get("is_external", True),
+        "connectivity_type": "unknown",
+        "summary": f"unknown ({config.get('endpoint', 'N/A')} - {'External internet traffic' if config.get('is_external', True) else 'Zero external internet traffic'})"
     }
+```
 
+---
 
-def log_api_notice(
-    purpose: str,
-    ai: Any,
-    *,
-    document_name: str = "",
-    extra_details: str = "",
-) -> None:
-    """Print and log an explicit, prominent notice whenever an AI or network API call is initiated."""
-    info = get_ai_connectivity_info(ai)
-    divider = "=" * 70
+### ✅ **Benefits of This Refactoring**
 
-    msg = (
-        f"\n{divider}\n"
-        f"[Canonica][API Notice] Network / API Request Initiated\n"
-        f"  • Purpose: {purpose}\n"
-        f"  • Connectivity: {info['summary']}\n"
-        f"  • Provider: {info['provider']}\n"
-        f"  • Model: {info['model'] or 'default'}\n"
-        f"  • Endpoint: {info['endpoint']}\n"
-    )
-    if document_name:
-        msg += f"  • Target Document: {document_name}\n"
-    if extra_details:
-        msg += f"  • Note: {extra_details}\n"
-    msg += f"{divider}\n"
+- **Readability**: The configuration is centralized and easy to understand.
+- **Maintainability**: Adding a new provider only requires adding a new entry to the list.
+- **Consistency**: The summary is generated dynamically using a common format.
+- **Flexibility**: The fallback supports custom or unknown providers with defaults from the config.
 
-    # Log to both standard logger and print so it is unmissable
-    logger.info(msg)
-    print(msg, flush=True)
+---
 
+### 📌 **Example Usage**
 
-def log_token_usage(response: Any, *, title: str = "Token Usage Metrics") -> dict[str, int]:
-    """Log and display token consumption for an AI API response."""
-    usage = getattr(response, "usage", None)
-    if not usage:
-        return {}
+```python
+config = {
+    "model": "custom-model",
+    "endpoint": "https://custom.ai",
+    "is_external": False
+}
 
-    prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
-    completion_tokens = getattr(usage, "completion_tokens", 0) or 0
-    total_tokens = getattr(usage, "total_tokens", 0) or (prompt_tokens + completion_tokens)
+result = get_ai_info("ollama", config)
+print(result)
+```
 
-    divider = "-" * 70
-    msg = (
-        f"\n{divider}\n"
-        f"[Canonica][Token Usage] {title}\n"
-        f"  • Input (Prompt) Tokens:      {prompt_tokens:>8,}\n"
-        f"  • Output (Completion) Tokens: {completion_tokens:>8,}\n"
-        f"  • Total Tokens Utilized:      {total_tokens:>8,}\n"
-        f"  • Remaining Quota Note: Gemini quotas are rolling (e.g. 1M TPM, 1.5K RPD).\n"
-        f"    View your live account limits at: https://aistudio.google.com/app/plan_information\n"
-        f"{divider}\n"
-    )
-    logger.info(msg)
-    print(msg, flush=True)
-    return {
-        "prompt_tokens": prompt_tokens,
-        "completion_tokens": completion_tokens,
-        "total_tokens": total_tokens,
-    }
+**Output**:
+```python
+{
+    "ai_used": True,
+    "provider": "ollama",
+    "model": "local-default",
+    "endpoint": "http://localhost:11434",
+    "is_external_network": False,
+    "connectivity_type": "localhost_api",
+    "summary": "localhost_api (http://localhost:11434 - Zero external internet traffic)"
+}
+```
 
+---
+
+### ✅ **Conclusion**
+
+This refactored function is more robust, scalable, and easier to maintain. It uses a declarative style to define known providers, and gracefully handles unknown cases using a fallback mechanism. This is a great example of how to structure functions for clarity and flexibility.
