@@ -53,7 +53,13 @@ class AI:
             generation=generation or GenerationOptions(),
         )
 
+        self._config = config
         self._provider: AIProvider = AIProviderFactory.create(config)
+
+    @property
+    def config(self) -> AIProviderConfig:
+        """Return the configuration for this AI provider instance."""
+        return self._config
 
     async def generate(
         self,
@@ -106,6 +112,12 @@ class AI:
 
     @classmethod
     def gemini(cls, **kwargs):
+        if kwargs.get("api_key") is None:
+            import os
+
+            key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            if key:
+                kwargs["api_key"] = key
         return cls(
             provider="gemini",
             **kwargs,

@@ -7,9 +7,15 @@ from aip_provider.base_provider import AIProvider
 from aip_provider.config import AIProviderConfig
 from aip_provider.generation_options import GenerationOptions
 from aip_provider.generation_request import GenerationRequest
-from aip_provider.models import AIResponse
+from aip_provider.models import AIResponse, Usage
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+import logging
+import os
+
+logger = logging.getLogger("aip_provider.gemini")
+
+DEFAULT_MODEL = "gemini-3.8-flash"
+FALLBACK_MODEL = "gemini-3.5-flash"
 
 
 class GeminiProvider(AIProvider):
@@ -24,14 +30,17 @@ class GeminiProvider(AIProvider):
         config: AIProviderConfig,
     ) -> None:
 
-        if config.api_key is None:
-            raise ValueError("Gemini requires an API key.")
+        api_key = config.api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "Gemini requires an API key. Pass api_key or set GEMINI_API_KEY / GOOGLE_API_KEY in the environment."
+            )
 
         self._model = config.model or DEFAULT_MODEL
         self._generation_defaults = config.generation or GenerationOptions()
 
         self._client = genai.Client(
-            api_key=config.api_key,
+            api_key=api_key,
         )
 
     async def close(self) -> None:
@@ -68,18 +77,43 @@ class GeminiProvider(AIProvider):
         self,
         request: GenerationRequest,
     ) -> AIResponse:
+        model_to_use = self._model
+        config = self._build_config(request)
 
-        response = await self._client.aio.models.generate_content(
-            model=self._model,
-            contents=request.prompt,
-            config=self._build_config(request),
-        )
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=model_to_use,
+                contents=request.prompt,
+                config=config,
+            )
+        except Exception as exc:
+            err_str = str(exc)
+            if ("503" in err_str or "high demand" in err_str.lower()) and model_to_use != FALLBACK_MODEL:
+                logger.warning(
+                    f"Gemini model '{model_to_use}' experienced high demand (503). Gracefully falling back to '{FALLBACK_MODEL}'."
+                )
+                model_to_use = FALLBACK_MODEL
+                response = await self._client.aio.models.generate_content(
+                    model=model_to_use,
+                    contents=request.prompt,
+                    config=config,
+                )
+            else:
+                raise
+
+        usage = None
+        if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
+            usage = Usage(
+                prompt_tokens=getattr(response.usage_metadata, "prompt_token_count", 0) or 0,
+                completion_tokens=getattr(response.usage_metadata, "candidates_token_count", 0) or 0,
+                total_tokens=getattr(response.usage_metadata, "total_token_count", 0) or 0,
+            )
 
         return AIResponse(
             text=response.text or "",
-            model=self._model,
+            model=model_to_use,
             finish_reason=None,
-            usage=None,
+            usage=usage,
         )
 
     async def stream(
