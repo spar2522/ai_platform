@@ -58,15 +58,15 @@ RelationshipGraph = CanonicalGraph
 GraphNode = CanonicalNode
 GraphEdge = Relationship
 
-__version__ = "0.2.0"  # Package version
+__version__ = "0.2.0"
 
 __all__ = [
-    # Core API functions
+    # Core API
+    "parse_document",
     "understand",
     "validate",
-    "parse_document",
     "configure",
-    # Core models
+    # Models
     "CanonicalDocument",
     "BankStatement",
     "BankTransaction",
@@ -104,20 +104,20 @@ __all__ = [
     "DatePeriod",
     "Money",
     "TransactionDirection",
-    # Extractor system
+    # Extractors
     "Extractor",
     "ExtractorRegistry",
     "get_default_registry",
-    # Learning components
+    # Learning
     "StrategyLearner",
     "LearnedStrategy",
     "LearningReport",
-    # Validation system
+    # Validation
     "FinancialValidator",
     "ValidationResult",
     "Finding",
     "Severity",
-    # Exception classes
+    # Exceptions
     "CanonicaError",
     "CanonicaException",
     "ParseError",
