@@ -9,7 +9,7 @@ from aip_provider.provider_type import Provider
 
 class AI:
     """
-    Public entry point for the AI SDK..
+    Public entry point for the AI SDK.
 
     Examples
     --------
@@ -88,7 +88,7 @@ class AI:
         options: GenerationOptions | None = None,
     ):
         """
-        Stream a response from the configured AI provider.
+        Stream responses from the configured AI provider.
         """
 
         request = GenerationRequest(
@@ -100,51 +100,42 @@ class AI:
         async for chunk in self._provider.stream(request):
             yield chunk
 
-        async def close(self):
-            await self._provider.close()
-
     @classmethod
     def local(cls, **kwargs):
-        return cls(
-            provider="local",
-            **kwargs,
-        )
+        """Create an AI instance configured for local model providers."""
+        return cls(provider="local", **kwargs)
 
     @classmethod
     def gemini(cls, **kwargs):
+        """
+        Create an AI instance configured for Gemini model providers.
+
+        If `api_key` is not provided in `kwargs`, it will be automatically
+        fetched from the environment variables `GEMINI_API_KEY` or
+        `GOOGLE_API_KEY`.
+        """
         if kwargs.get("api_key") is None:
             import os
 
             key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
             if key:
                 kwargs["api_key"] = key
-        return cls(
-            provider="gemini",
-            **kwargs,
-        )
+        return cls(provider="gemini", **kwargs)
 
     @classmethod
     def openai(cls, **kwargs):
-        return cls(
-            provider="openai",
-            **kwargs,
-        )
+        """Create an AI instance configured for OpenAI model providers."""
+        return cls(provider="openai", **kwargs)
 
-    @staticmethod
-    def _resolve_provider(provider: str) -> Provider:
-
+    def _resolve_provider(self, provider: str) -> Provider:
         providers = {
-            "local": Provider.OLLAMA,
+            "local": Provider.LOCAL,
             "gemini": Provider.GEMINI,
             "openai": Provider.OPENAI,
             "dummy": Provider.DUMMY,
         }
 
-        try:
-            return providers[provider.lower()]
-        except KeyError:
-            supported = ", ".join(sorted(providers.keys()))
-            raise ValueError(
-                f"Unsupported provider '{provider}'. "
-                f"Supported providers: {supported}"
-            )
+        if provider not in providers:
+            raise ValueError(f"Unsupported provider: {provider}")
+
+        return providers[provider]
