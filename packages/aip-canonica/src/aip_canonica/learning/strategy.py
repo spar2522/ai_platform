@@ -19,6 +19,10 @@ class LearnedStrategy:
     table_header_keywords: list[str] = field(default_factory=list)
     column_mapping: dict[str, str] = field(default_factory=dict)
     metadata_fields: dict[str, str] = field(default_factory=dict)
+    layout_type: str = "flat_tabular"  # "flat_tabular" | "multiline_block" | "key_value_form"
+    evolution_mode: str = "create_new"  # "create_new" | "evolve_existing"
+    related_extractor_name: str | None = None
+    block_delimiters: dict[str, str] = field(default_factory=dict)
     notes: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -29,6 +33,10 @@ class LearnedStrategy:
             "table_header_keywords": self.table_header_keywords,
             "column_mapping": self.column_mapping,
             "metadata_fields": self.metadata_fields,
+            "layout_type": self.layout_type,
+            "evolution_mode": self.evolution_mode,
+            "related_extractor_name": self.related_extractor_name,
+            "block_delimiters": self.block_delimiters,
             "notes": self.notes,
         }
 

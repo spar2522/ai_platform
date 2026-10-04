@@ -86,7 +86,7 @@ class StandardBankStatementExtractor:
                             col_map["debit"] = c_idx
                         elif any(k in txt for k in ["credit", "deposit", "cr", "inflow"]):
                             col_map["credit"] = c_idx
-                        elif "balance" in txt:
+                        elif any(k in txt for k in ["balance", "bal", "closing"]):
                             col_map["balance"] = c_idx
                         elif any(k in txt for k in ["chq", "ref", "cheque"]):
                             col_map["ref"] = c_idx
@@ -106,6 +106,7 @@ class StandardBankStatementExtractor:
         institution_name = None
         opening_balance = None
         closing_balance = None
+        extracted_period = None
 
         for row in target_sheet.rows:
             if row.index >= header_row_idx:
@@ -114,6 +115,39 @@ class StandardBankStatementExtractor:
                 raw_cell = str(cell.value or "").strip()
                 if not raw_cell:
                     continue
+
+                # Direct regex matching on full cell string for account number
+                if not account_number:
+                    acc_m = re.search(
+                        r"(?:account\s*no|a/c\s*no|account\s*number)[^\w\d]*([A-Za-z0-9]+)",
+                        raw_cell,
+                        re.IGNORECASE,
+                    )
+                    if acc_m:
+                        account_number = acc_m.group(1)
+
+                # Period dates in cell
+                if not extracted_period:
+                    per_m = re.search(
+                        r"from\s*[:\-]?\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4}).*?to\s*[:\-]?\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4})",
+                        raw_cell,
+                        re.IGNORECASE,
+                    )
+                    if per_m:
+                        extracted_period = DatePeriod(start_date=per_m.group(1), end_date=per_m.group(2))
+
+                # IFSC code
+                if not ifsc_code:
+                    ifsc_m = re.search(r"ifsc(?:\s*code)?\s*[:\-]+\s*([A-Za-z0-9]+)", raw_cell, re.IGNORECASE)
+                    if ifsc_m:
+                        ifsc_code = ifsc_m.group(1)
+
+                # Holder name
+                if not holder_name:
+                    name_m = re.search(r"^(?:name|account\s*holder)\s*[:\-]+\s*([^\n,]+)", raw_cell, re.IGNORECASE)
+                    if name_m:
+                        holder_name = re.sub(r"^[:\-\s]+", "", name_m.group(1)).strip()
+
                 next_val = str(row.cells[c_idx + 1].value or "").strip() if c_idx + 1 < len(row.cells) else ""
                 if ":" in raw_cell:
                     parts = raw_cell.split(":", 1)
@@ -127,14 +161,8 @@ class StandardBankStatementExtractor:
                 if not final_val:
                     continue
 
-                if any(k in key_part for k in ["account no", "a/c no", "account number"]) and not account_number:
-                    account_number = final_val
-                elif any(k in key_part for k in ["account type", "a/c type"]) and not account_type:
+                if any(k in key_part for k in ["account type", "a/c type"]) and not account_type:
                     account_type = final_val
-                elif any(k in key_part for k in ["ifsc", "routing", "sort code", "swift", "bic"]) and not ifsc_code:
-                    ifsc_code = final_val
-                elif any(k in key_part for k in ["name", "account holder", "holder"]) and not holder_name:
-                    holder_name = final_val
                 elif any(k in key_part for k in ["bank", "institution", "branch address"]) and not institution_name:
                     institution_name = final_val.split(",")[0].strip() if "branch" in key_part else final_val
                 elif any(k in key_part for k in ["branch", "a/c branch"]) and not branch_name:
@@ -250,8 +278,8 @@ class StandardBankStatementExtractor:
                 else:
                     opening_balance = first_txn.balance + first_txn.amount
 
-        period: DatePeriod | None = None
-        if transactions:
+        period: DatePeriod | None = extracted_period
+        if period is None and transactions:
             period = DatePeriod(start_date=transactions[0].date, end_date=transactions[-1].date)
 
         return BankStatement(

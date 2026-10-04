@@ -28,6 +28,16 @@ class BankStatementValidator:
     def validate(self, statement: BankStatement) -> ValidationResult:
         issues: list[ValidationIssue] = []
 
+        if not statement.transactions:
+            issues.append(
+                ValidationIssue(
+                    severity="error",
+                    code="EMPTY_STATEMENT",
+                    message="Bank statement contains no transactions",
+                    field="transactions",
+                )
+            )
+
         total_credits = Decimal("0")
         total_debits = Decimal("0")
 
@@ -117,6 +127,16 @@ class InvoiceValidator:
     def validate(self, invoice: Invoice) -> ValidationResult:
         issues: list[ValidationIssue] = []
 
+        if not invoice.lines:
+            issues.append(
+                ValidationIssue(
+                    severity="error",
+                    code="EMPTY_INVOICE",
+                    message="Invoice contains no line items",
+                    field="lines",
+                )
+            )
+
         sum_lines = sum((line.amount for line in invoice.lines), Decimal("0"))
         sum_taxes = sum((t.amount for t in invoice.taxes), Decimal("0"))
         sum_discounts = sum((d.amount for d in invoice.discounts), Decimal("0"))
@@ -183,6 +203,16 @@ class LedgerValidator:
 
     def validate(self, ledger: Ledger) -> ValidationResult:
         issues: list[ValidationIssue] = []
+
+        if not ledger.entries:
+            issues.append(
+                ValidationIssue(
+                    severity="error",
+                    code="EMPTY_LEDGER",
+                    message="Ledger contains no entries",
+                    field="entries",
+                )
+            )
 
         total_debits = Decimal("0")
         total_credits = Decimal("0")
