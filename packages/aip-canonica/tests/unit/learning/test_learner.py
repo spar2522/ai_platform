@@ -10,8 +10,8 @@ from aip_provider.models import AIResponse
 
 
 @pytest.mark.asyncio
-async def test_strategy_learner_parses_valid_ai_response():
-    """Test that StrategyLearner correctly parses a valid AI response with JSON format."""
+async def test_strategy_learner_parses_ai_response():
+    """Verify that a valid AI response with JSON format is correctly parsed."""
     mock_ai = AsyncMock()
     mock_ai.generate.return_value = AIResponse(
         text="""```json
@@ -42,12 +42,13 @@ async def test_strategy_learner_parses_valid_ai_response():
     assert strategy.name == "custom_bank_statement"
     assert strategy.document_type == DocumentType.BANK_STATEMENT
     assert "Txn Date" == strategy.column_mapping["date"]
+    assert "A/C No:" == strategy.metadata_fields["account_number"]
     assert mock_ai.generate.called
 
 
 @pytest.mark.asyncio
-async def test_strategy_learner_handles_non_json_ai_response():
-    """Test that StrategyLearner handles non-JSON AI responses gracefully."""
+async def test_strategy_learner_handles_malformed_ai_response():
+    """Verify that a malformed AI response falls back to default strategy."""
     mock_ai = AsyncMock()
     mock_ai.generate.return_value = AIResponse(
         text="I could not determine the layout format.",
