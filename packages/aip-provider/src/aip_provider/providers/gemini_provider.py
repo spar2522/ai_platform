@@ -29,7 +29,15 @@ class GeminiProvider(AIProvider):
         self,
         config: AIProviderConfig,
     ) -> None:
+        """
+        Initialize the GeminiProvider with the given configuration.
 
+        Args:
+            config (AIProviderConfig): Configuration object containing API key, model, and generation options.
+
+        Raises:
+            ValueError: If no API key is provided in the configuration or environment variables.
+        """
         api_key = config.api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if not api_key:
             raise ValueError(
@@ -44,13 +52,22 @@ class GeminiProvider(AIProvider):
         )
 
     async def close(self) -> None:
+        """Close the Gemini client connection."""
         await self._client.aio.aclose()
 
     def _resolve_generation_options(
         self,
         request: GenerationRequest,
     ) -> GenerationOptions:
+        """
+        Merge the request's generation options with the provider's default options.
 
+        Args:
+            request (GenerationRequest): The request containing user-specified options.
+
+        Returns:
+            GenerationOptions: Merged generation options.
+        """
         return self._generation_defaults.model_copy(
             update=(
                 request.options.model_dump(exclude_none=True) if request.options else {}
@@ -61,7 +78,15 @@ class GeminiProvider(AIProvider):
         self,
         request: GenerationRequest,
     ) -> types.GenerateContentConfig:
+        """
+        Construct the Google GenAI configuration from the request.
 
+        Args:
+            request (GenerationRequest): The request containing configuration parameters.
+
+        Returns:
+            types.GenerateContentConfig: Config object for the GenAI API.
+        """
         options = self._resolve_generation_options(request)
 
         return types.GenerateContentConfig(
@@ -77,6 +102,18 @@ class GeminiProvider(AIProvider):
         self,
         request: GenerationRequest,
     ) -> AIResponse:
+        """
+        Generate a response using the Gemini model.
+
+        Args:
+            request (GenerationRequest): The request containing prompt and options.
+
+        Returns:
+            AIResponse: The generated response with metadata.
+
+        Raises:
+            Exception: If an unexpected error occurs during generation.
+        """
         model_to_use = self._model
         config = self._build_config(request)
 
@@ -120,5 +157,15 @@ class GeminiProvider(AIProvider):
         self,
         request: GenerationRequest,
     ):
-        raise NotImplementedError("Streaming support is coming in a future release.")
-        yield None  # pragma: no cover
+        """
+        Stream response generation (not yet implemented).
+
+        Note: Streaming support is planned for a future release.
+
+        Args:
+            request (GenerationRequest): The request containing prompt and options.
+
+        Yields:
+            None: Placeholder implementation.
+        """
+        raise NotImplementedError("Streaming is not yet implemented for GeminiProvider.")
