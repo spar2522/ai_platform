@@ -91,3 +91,50 @@ async def test_gemini_provider_fallback_on_503():
     assert res.model == FALLBACK_MODEL
     assert res.model == "gemini-3.5-flash"
     assert provider._client.aio.models.generate_content.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_gemini_provider_fallback_also_fails_raises_without_loop():
+    config = AIProviderConfig(
+        provider=Provider.GEMINI,
+        api_key="test-key",
+    )
+    provider = GeminiProvider(config)
+
+    # Both primary and fallback models throw 503
+    provider._client.aio.models.generate_content = AsyncMock(
+        side_effect=[
+            Exception("503 UNAVAILABLE. Primary model experiencing high demand."),
+            Exception("503 UNAVAILABLE. Fallback model experiencing high demand."),
+        ]
+    )
+
+    req = GenerationRequest(prompt="Say hi")
+
+    with pytest.raises(Exception, match="Fallback model experiencing high demand"):
+        await provider.generate(req)
+
+    # Exactly 2 calls made: primary then fallback; no endless loop
+    assert provider._client.aio.models.generate_content.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_gemini_provider_non_503_error_raises_immediately():
+    config = AIProviderConfig(
+        provider=Provider.GEMINI,
+        api_key="test-key",
+    )
+    provider = GeminiProvider(config)
+
+    provider._client.aio.models.generate_content = AsyncMock(
+        side_effect=Exception("400 INVALID_ARGUMENT: Invalid parameter")
+    )
+
+    req = GenerationRequest(prompt="Say hi")
+
+    with pytest.raises(Exception, match="400 INVALID_ARGUMENT"):
+        await provider.generate(req)
+
+    # Exactly 1 call made; no fallback attempt for non-503 errors
+    assert provider._client.aio.models.generate_content.call_count == 1
+
