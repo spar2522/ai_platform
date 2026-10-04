@@ -137,4 +137,3 @@ async def test_gemini_provider_non_503_error_raises_immediately():
 
     # Exactly 1 call made; no fallback attempt for non-503 errors
     assert provider._client.aio.models.generate_content.call_count == 1
-
