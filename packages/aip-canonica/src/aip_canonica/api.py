@@ -188,54 +188,106 @@ def understand(
 
     ai_fallback_triggered = False
 
+    def _is_complete_and_valid(doc: CanonicalDocument | None) -> bool:
+        if doc is None:
+            return False
+        from aip_canonica.models.bank_statement import BankStatement
+        from aip_canonica.models.invoice import Invoice
+        from aip_canonica.models.ledger import Ledger
+
+        if isinstance(doc, BankStatement) and not doc.transactions:
+            return False
+        if isinstance(doc, Invoice) and not doc.lines:
+            return False
+        if isinstance(doc, Ledger) and not doc.entries:
+            return False
+        return validate_document(doc).is_valid
+
     # 2. PDF Semantic / Calculation Recovery (Option B Fallback):
     # If extraction or calculation reconciliation failed on a PDF,
-    # switch to Option B: AI multimodal / OCR fallback.
-    if document is None and target_path.suffix.lower() == ".pdf":
-        from aip_canonica.parsers.pdf_parser import PdfParser
+    # and the user explicitly supplied an AI instance, engage AI multimodal / OCR fallback.
+    if target_path.suffix.lower() == ".pdf" and not _is_complete_and_valid(document):
+        total_rows = sum(len(s.rows) for s in workbook.sheets)
+        total_chars = sum(
+            len(str(c.value or ""))
+            for s in workbook.sheets
+            for r in s.rows
+            for c in r.cells
+            if c.value is not None
+        )
+        has_sufficient_text = total_rows >= 3 and total_chars >= 50
 
-        parser = ParserFactory.create(target_path, ai=ai)
-        if isinstance(parser, PdfParser):
-            reason_str = "; ".join(failure_reasons) if failure_reasons else "Semantic validation failed."
-            divider = "=" * 60
+        if learning_mode and has_sufficient_text:
             logger.info(
-                "\n%s\n[Canonica][AI Fallback] Option A (Deterministic PDF extraction) failed semantic/calculation checks.\n"
-                "Document: '%s'\n"
-                "Issue: %s\n"
-                "Switching to Option B: Engaging AI multimodal / OCR fallback via aip-provider to re-parse the PDF...\n%s",
-                divider,
-                target_path.name,
-                reason_str,
-                divider,
+                "\n[Canonica][Flow] Deterministic workbook parsing succeeded (%d rows, %d chars). "
+                "The PDF is digital text (not a scanned image). "
+                "Bypassing Option B (AI OCR Fallback) and routing directly to Option C (AI Strategy Learner) "
+                "to analyze this layout and synthesize a specialized extractor.",
+                total_rows,
+                total_chars,
             )
-            ai_workbook = parser.parse_ai_fallback(
-                target_path,
-                reason=reason_str,
-                partial_workbook=workbook,
+        elif ai is None:
+            logger.info(
+                "[Canonica][Notice] Option A deterministic PDF extraction did not produce a complete valid document. "
+                "No AI instance was provided (ai=None), so AI OCR fallback was not attempted (0 AI calls)."
             )
-            if (
-                ai_workbook is not None
-                and len(ai_workbook.sheets) > 0
-                and any(len(s.rows) > 0 for s in ai_workbook.sheets)
-            ):
-                workbook = ai_workbook
-                ai_doc, ai_name, ai_is_gen, ai_reasons = _try_extract_canonical_document(
-                    workbook,
-                    active_registry,
-                    extractor,
-                    source_uri,
-                    target_path,
+        else:
+            from aip_canonica.parsers.pdf_parser import PdfParser
+
+            parser = ParserFactory.create(target_path, ai=ai)
+            if isinstance(parser, PdfParser):
+                reason_str = (
+                    "; ".join(failure_reasons)
+                    if failure_reasons
+                    else "Deterministic extraction produced incomplete or unvalidated data."
                 )
-                if ai_doc is not None:
-                    document = ai_doc
-                    matched_name = ai_name
-                    is_generic = ai_is_gen
-                    ai_fallback_triggered = True
-                else:
-                    failure_reasons.extend(ai_reasons)
+                divider = "=" * 60
+                logger.info(
+                    "\n%s\n[Canonica][AI Fallback] Option A (Deterministic PDF extraction) failed semantic/calculation checks.\n"
+                    "Document: '%s'\n"
+                    "Issue: %s\n"
+                    "Engaging Option B: AI multimodal / OCR fallback using configured AI provider...\n%s",
+                    divider,
+                    target_path.name,
+                    reason_str,
+                    divider,
+                )
+                ai_workbook = parser.parse_ai_fallback(
+                    target_path,
+                    reason=reason_str,
+                    partial_workbook=workbook,
+                )
+                if (
+                    ai_workbook is not None
+                    and len(ai_workbook.sheets) > 0
+                    and any(len(s.rows) > 0 for s in ai_workbook.sheets)
+                ):
+                    workbook = ai_workbook
+                    ai_doc, ai_name, ai_is_gen, ai_reasons = _try_extract_canonical_document(
+                        workbook,
+                        active_registry,
+                        extractor,
+                        source_uri,
+                        target_path,
+                    )
+                    if ai_doc is not None and _is_complete_and_valid(ai_doc):
+                        document = ai_doc
+                        matched_name = ai_name
+                        is_generic = ai_is_gen
+                        ai_fallback_triggered = True
+                    else:
+                        failure_reasons.extend(ai_reasons)
 
     # 3. Decision Outcomes & Logging
     if document is not None:
+        from aip_canonica.audit import get_ai_connectivity_info
+
+        effective_ai = ai if ai_fallback_triggered else None
+        audit_info = get_ai_connectivity_info(effective_ai)
+        audit_info["ai_used"] = bool(ai_fallback_triggered)
+        audit_info["mode"] = "ai_multimodal_fallback" if ai_fallback_triggered else "deterministic"
+        document.metadata["ai_audit"] = audit_info
+
         val_result = validate_document(document)
         if validate and not val_result.is_valid:
             error_msgs = "; ".join(e.message for e in val_result.errors)
@@ -296,6 +348,11 @@ def understand(
                 )
             return document
         else:
+            if ai is None:
+                raise ValueError(
+                    "learning_mode=True requires an AI instance to inspect layout and synthesize extractor code. "
+                    "Pass an explicit ai instance (e.g. ai=AI.local() or ai=AI.gemini(...))."
+                )
             divider = "=" * 60
             logger.info(
                 "\n%s\n[Canonica][AI Learner] Generic extraction passed with learning_mode=True. "
@@ -303,7 +360,15 @@ def understand(
                 divider,
                 divider,
             )
+            from aip_canonica.audit import get_ai_connectivity_info, log_api_notice
             from aip_canonica.learning.learner import StrategyLearner
+
+            log_api_notice(
+                purpose="Option C AI Strategy Learner Analysis",
+                ai=ai,
+                document_name=target_path.name,
+                extra_details="Analyzing document structure to synthesize candidate extractor.",
+            )
 
             learner = StrategyLearner(ai=ai)
             report = learner.analyze_and_report(
@@ -313,6 +378,12 @@ def understand(
                 name=f"{target_path.stem}_strategy",
             )
             logger.info("\n%s", report.summary())
+
+            audit_info = get_ai_connectivity_info(ai)
+            audit_info["ai_used"] = True
+            audit_info["mode"] = "learning_mode"
+            document.metadata["ai_audit"] = audit_info
+
             return document
 
     # 4. Extraction / Validation Failed Entirely
@@ -337,6 +408,11 @@ def understand(
             f"No matching extractor found or validation failed for '{target_path.name}'."
         )
     else:
+        if ai is None:
+            raise ValueError(
+                "learning_mode=True requires an AI instance to inspect layout and synthesize extractor code. "
+                "Pass an explicit ai instance (e.g. ai=AI.local() or ai=AI.gemini(...))."
+            )
         divider = "=" * 60
         logger.info(
             "\n%s\n[Canonica][AI Learner] Extraction failed with learning_mode=True. "
@@ -344,7 +420,15 @@ def understand(
             divider,
             divider,
         )
+        from aip_canonica.audit import log_api_notice
         from aip_canonica.learning.learner import StrategyLearner
+
+        log_api_notice(
+            purpose="Option C AI Strategy Learner Analysis",
+            ai=ai,
+            document_name=target_path.name,
+            extra_details="Analyzing document structure to synthesize candidate extractor.",
+        )
 
         learner = StrategyLearner(ai=ai)
         report = learner.analyze_and_report(

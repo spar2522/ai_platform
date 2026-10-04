@@ -136,6 +136,13 @@ def verify_document(
         if doc.provenance:
             print(f"  {DIM}Stateless Provenance Source:{RESET} {doc.provenance.source}")
 
+        # Audit and Connectivity
+        audit = doc.metadata.get("ai_audit", {})
+        if audit.get("ai_used"):
+            print(f"  {CYAN}⚡ AI Invoked:{RESET} YES ({audit.get('provider')}/{audit.get('model')}) | {audit.get('summary')}")
+        else:
+            print(f"  {DIM}Execution Mode: 100% Offline / Deterministic (0 AI calls, 0 network){RESET}")
+
         print()
         return True
 
@@ -290,7 +297,61 @@ def run_ai_suite() -> None:
         print(f"  {RED}✖ AI Strategy Learner Failed:{RESET} {exc}\n")
 
 
-def verify_custom_file(file_path: str, learn: bool = False) -> None:
+def print_debug_trace(path: Path, workbook: Any) -> None:
+    """Print detailed diagnostic trace of workbook contents and structure."""
+    sheet_count = len(workbook.sheets)
+    total_rows = sum(len(s.rows) for s in workbook.sheets)
+    total_cells = sum(
+        1 for s in workbook.sheets for r in s.rows for c in r.cells if c.value is not None
+    )
+    total_chars = sum(
+        len(str(c.value or ""))
+        for s in workbook.sheets
+        for r in s.rows
+        for c in r.cells
+        if c.value is not None
+    )
+
+    print(f"\n{BOLD}{CYAN}---------------------------------------------------------------------------{RESET}")
+    print(f"{BOLD}{CYAN}  [DEBUG TRACE] DIAGNOSTIC WORKBOOK INSPECTION{RESET}")
+    print(f"{BOLD}{CYAN}---------------------------------------------------------------------------{RESET}")
+    print(f"  {BOLD}Step 1: Raw Parsing -> Workbook Conversion{RESET}")
+    print(f"    • File: {path.name} ({path.stat().st_size:,} bytes)")
+    print(f"    • Sheets: {sheet_count}")
+    print(f"    • Total Rows: {total_rows}")
+    print(f"    • Non-Empty Cells: {total_cells}")
+    print(f"    • Total Text Characters: {total_chars:,}")
+    print(f"    • Conversion Status: {GREEN}SUCCESS{RESET} (Native digital text extracted)")
+
+    if workbook.sheets:
+        first_sheet = workbook.sheets[0]
+        preview_rows = first_sheet.rows[:25]
+        print(f"\n    {BOLD}--- Workbook Content Preview (First {len(preview_rows)} Rows of '{first_sheet.name}') ---{RESET}")
+        for r in preview_rows:
+            vals = [str(c.value) for c in r.cells if c.value is not None]
+            val_str = " | ".join(vals) if vals else "<empty>"
+            if len(val_str) > 90:
+                val_str = val_str[:87] + "..."
+            print(f"    Row {r.index:>2} ({len(r.cells)} cell(s)): {val_str}")
+
+    print(f"\n  {BOLD}Step 2: Extractor Resolution & Routing Flow{RESET}")
+    if total_rows >= 3 and total_chars >= 50:
+        print("    • Vector Text Present: YES (Document is digital text, NOT a scanned raster image)")
+        print("    • Option B (AI OCR Fallback): BYPASSABLE (Re-running OCR on clean text is redundant)")
+        print("    • Option C (AI Strategy Learner): RECOMMENDED (Analyze multi-line layout to synthesize specialized extractor)")
+    else:
+        print("    • Vector Text Present: NO (Document appears scanned or raster)")
+        print("    • Option B (AI OCR Fallback): REQUIRED for OCR recovery")
+    print(f"{BOLD}{CYAN}---------------------------------------------------------------------------{RESET}\n")
+
+
+def verify_custom_file(
+    file_path: str,
+    use_ai: bool = False,
+    learn: bool = False,
+    debug: bool = False,
+    provider: str = "auto",
+) -> None:
     """Verify an arbitrary user-supplied file."""
     path = Path(file_path).resolve()
     print_banner(f"VERIFYING CUSTOM FILE: {path.name}")
@@ -298,9 +359,36 @@ def verify_custom_file(file_path: str, learn: bool = False) -> None:
         print(f"{RED}File not found:{RESET} {path}")
         return
 
+    if debug:
+        logging.getLogger("aip_canonica").setLevel(logging.DEBUG)
+
+    ai_instance = None
+    if use_ai or learn:
+        import os
+        from aip_provider import AI
+
+        use_gemini = provider == "gemini" or (provider == "auto" and bool(os.getenv("GEMINI_API_KEY")))
+        try:
+            if use_gemini:
+                ai_instance = AI.gemini()
+            else:
+                ai_instance = AI.local()
+        except Exception as exc:
+            prov_name = "Gemini" if use_gemini else "local"
+            print(f"{YELLOW}⚠ Could not initialize {prov_name} AI provider ({exc}). Falling back to deterministic mode.{RESET}")
+            ai_instance = None
+
+    # In debug mode, inspect raw workbook first
+    if debug:
+        try:
+            raw_wb = parse_document(path, ai=ai_instance)
+            print_debug_trace(path, raw_wb)
+        except Exception as exc:
+            print(f"{RED}[DEBUG] Failed to parse workbook: {exc}{RESET}")
+
     start_time = time.perf_counter()
     try:
-        doc = understand(path, validate=True, learning_mode=learn)
+        doc = understand(path, validate=True, ai=ai_instance, learning_mode=learn)
         elapsed = (time.perf_counter() - start_time) * 1000
         val = validate(doc)
 
@@ -308,8 +396,21 @@ def verify_custom_file(file_path: str, learn: bool = False) -> None:
         print(f"  {DIM}Document Type:{RESET} {doc.document_type.value}")
         print(f"  {DIM}Validation Status:{RESET} {'PASSED' if val.is_valid else 'FAILED'}")
 
+        # Audit and Connectivity
+        audit = doc.metadata.get("ai_audit", {})
+        print(f"\n  {BOLD}Audit & Connectivity:{RESET}")
+        print(f"    • Mode: {audit.get('mode', 'deterministic').upper()}")
+        print(f"    • AI Used: {'YES' if audit.get('ai_used') else 'NO'}")
+        if audit.get("ai_used"):
+            print(f"    • Provider: {audit.get('provider')}")
+            print(f"    • Model: {audit.get('model')}")
+            print(f"    • Network: {'EXTERNAL INTERNET' if audit.get('is_external_network') else 'LOCALHOST ONLY (0 external traffic)'}")
+            print(f"    • Endpoint: {audit.get('endpoint')}")
+        else:
+            print("    • Network: 100% OFFLINE (0 network requests, 0 external data)")
+
         if isinstance(doc, BankStatement):
-            print(f"  {DIM}Account:{RESET} {doc.account_number or 'N/A'}")
+            print(f"\n  {DIM}Account:{RESET} {doc.account_number or 'N/A'}")
             print(f"  {DIM}Opening Balance:{RESET} {doc.currency} {doc.opening_balance}")
             print(f"  {DIM}Closing Balance:{RESET} {doc.currency} {doc.closing_balance}")
             print(f"  {DIM}Transactions Extracted:{RESET} {len(doc.transactions):,}")
@@ -319,7 +420,7 @@ def verify_custom_file(file_path: str, learn: bool = False) -> None:
                     print(f"    - {txn.date} | {txn.direction.value.upper():<6} | {txn.amount:>10} | {txn.narration[:40]}")
 
         elif isinstance(doc, Invoice):
-            print(f"  {DIM}Invoice #:{RESET} {doc.invoice_number}")
+            print(f"\n  {DIM}Invoice #:{RESET} {doc.invoice_number}")
             print(f"  {DIM}Invoice Date:{RESET} {doc.invoice_date}")
             print(f"  {DIM}Total Amount:{RESET} {doc.currency} {doc.total_amount}")
             print(f"  {DIM}Line Items:{RESET} {len(doc.lines)}")
@@ -329,7 +430,7 @@ def verify_custom_file(file_path: str, learn: bool = False) -> None:
                     print(f"    - {line.description[:35]:<35} | Qty: {line.quantity or 1} | Amount: {line.amount}")
 
         elif isinstance(doc, Ledger):
-            print(f"  {DIM}Entries Extracted:{RESET} {len(doc.entries):,}")
+            print(f"\n  {DIM}Entries Extracted:{RESET} {len(doc.entries):,}")
             if doc.entries:
                 print(f"\n  {BOLD}Sample Entries:{RESET}")
                 for entry in doc.entries[:3]:
@@ -343,13 +444,21 @@ def verify_custom_file(file_path: str, learn: bool = False) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Canonica Document Verification Suite")
-    parser.add_argument("--ai", action="store_true", help="Run AI integration tests (Option B fallback & strategy learner)")
+    parser.add_argument("--ai", action="store_true", help="Authorize AI integration (Option B fallback & strategy learner)")
     parser.add_argument("--file", type=str, help="Path to any custom file to verify")
     parser.add_argument("--learn", action="store_true", help="Enable learning_mode=True when verifying a custom file")
+    parser.add_argument("--debug", action="store_true", help="Print detailed diagnostic trace of parsing, workbook content, and validation")
+    parser.add_argument(
+        "--provider",
+        type=str,
+        default="auto",
+        choices=["auto", "gemini", "local"],
+        help="AI provider to use ('gemini' or 'local'). Defaults to 'gemini' if GEMINI_API_KEY is set, else 'local'.",
+    )
     args = parser.parse_args()
 
     if args.file:
-        verify_custom_file(args.file, learn=args.learn)
+        verify_custom_file(args.file, use_ai=args.ai, learn=args.learn, debug=args.debug, provider=args.provider)
     elif args.ai:
         run_deterministic_suite()
         run_ai_suite()

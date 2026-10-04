@@ -50,12 +50,26 @@ def test_bank_statement_validation_missing_balance_warning():
         id="s1",
         opening_balance=None,
         closing_balance=Decimal("1000.00"),
-        transactions=[],
+        transactions=[
+            Transaction(id="t1", date="2026-01-01", amount=Decimal("100.00"), direction=TransactionDirection.CREDIT, narration="In"),
+        ],
     )
     result = BankStatementValidator().validate(stmt)
     assert result.is_valid  # Warnings do not invalidate
     assert len(result.warnings) == 1
     assert result.warnings[0].code == "MISSING_OPENING_BALANCE"
+
+
+def test_bank_statement_validation_empty_fails():
+    stmt = BankStatement(
+        id="s1",
+        opening_balance=Decimal("100.00"),
+        closing_balance=Decimal("100.00"),
+        transactions=[],
+    )
+    result = BankStatementValidator().validate(stmt)
+    assert not result.is_valid
+    assert any(e.code == "EMPTY_STATEMENT" for e in result.errors)
 
 
 def test_invoice_validation_success_and_failure():
@@ -117,8 +131,10 @@ def test_validate_dispatcher():
     stmt = BankStatement(
         id="s1",
         opening_balance=Decimal("100.00"),
-        closing_balance=Decimal("100.00"),
-        transactions=[],
+        closing_balance=Decimal("150.00"),
+        transactions=[
+            Transaction(id="t1", date="2026-01-01", amount=Decimal("50.00"), direction=TransactionDirection.CREDIT, narration="In"),
+        ],
     )
     res = validate(stmt)
     assert res.is_valid

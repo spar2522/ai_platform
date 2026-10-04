@@ -84,6 +84,21 @@ class PdfParser(DocumentParser):
             sum(len(s.rows) for s in deterministic_workbook.sheets) if deterministic_workbook else 0
         )
 
+        if self._ai is None:
+            if deterministic_workbook is not None and any(len(s.rows) > 0 for s in deterministic_workbook.sheets):
+                logger.info(
+                    "[Canonica][PDF Parser] Content below ideal threshold but no AI instance provided (ai=None). "
+                    "Returning deterministic workbook (%d rows).",
+                    total_rows,
+                )
+                return deterministic_workbook
+            raise ValueError(
+                f"Failed to parse PDF document '{path.name}': "
+                f"Deterministic parser found insufficient content ({total_chars} chars, {total_rows} rows), "
+                f"and no AI instance was provided (ai=None). "
+                f"Pass an explicit ai instance (e.g. ai=AI.local() or ai=AI.gemini(...)) to enable AI parsing."
+            )
+
         divider = "=" * 60
         logger.info(
             "\n%s\n[Canonica][AI Fallback] Option A (Deterministic PDF extraction) yielded insufficient content.\n"
@@ -97,6 +112,15 @@ class PdfParser(DocumentParser):
             self.min_chars,
             self.min_rows,
             divider,
+        )
+
+        from aip_canonica.audit import log_api_notice
+
+        log_api_notice(
+            purpose="Option B Multimodal PDF OCR Parsing",
+            ai=self._get_ai(),
+            document_name=path.name,
+            extra_details=f"Insufficient vector text ({total_chars} chars, {total_rows} rows).",
         )
 
         ai_workbook = self._parse_with_ai(path, deterministic_workbook)
@@ -207,14 +231,28 @@ class PdfParser(DocumentParser):
         - Inability to retrieve mandatory information
         - Mathematical calculation / reconciliation mismatch (opening + deposits - withdrawals != closing)
         """
+        if self._ai is None:
+            logger.info(
+                "[Canonica][AI Fallback] parse_ai_fallback skipped because no AI instance was provided (ai=None)."
+            )
+            return None
+
+        from aip_canonica.audit import log_api_notice
+
+        log_api_notice(
+            purpose="Option B Multimodal PDF OCR Fallback Recovery",
+            ai=self._get_ai(),
+            document_name=path.name,
+            extra_details=reason,
+        )
         path = Path(path)
         return self._parse_with_ai(path, partial_workbook=partial_workbook, reason=reason)
 
     def _get_ai(self) -> AI:
         if self._ai is None:
-            from aip_provider import AI
-
-            self._ai = AI.local()
+            raise ValueError(
+                "No AI instance was provided. Pass an explicit ai instance (e.g. ai=AI.local() or ai=AI.gemini(...)) to enable AI."
+            )
         return self._ai
 
     def _parse_with_ai(

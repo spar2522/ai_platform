@@ -83,6 +83,11 @@ class CanonicalDocument(CanonicalNode, Protocol):
         """The canonical document type."""
         ...
 
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Extensible metadata dictionary."""
+        ...
+
     def as_graph(self) -> CanonicalGraph:
         """Construct the canonical directed graph."""
         ...
