@@ -30,10 +30,15 @@ class DatePeriod:
     end_date: str
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert date period to dictionary format."""
         return {
             "start_date": self.start_date,
             "end_date": self.end_date,
         }
+
+    def __repr__(self) -> str:
+        """Return a human-readable string representation."""
+        return f"DatePeriod(start_date='{self.start_date}', end_date='{self.end_date}')"
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,10 +49,15 @@ class Money:
     currency: str = "INR"
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert monetary value to dictionary format."""
         return {
             "amount": str(self.amount),
             "currency": self.currency,
         }
+
+    def __repr__(self) -> str:
+        """Return a human-readable string representation."""
+        return f"Money(amount={self.amount}, currency='{self.currency}')"
 
 
 @runtime_checkable
@@ -85,13 +95,13 @@ class CanonicalDocument(CanonicalNode, Protocol):
 
     @property
     def metadata(self) -> dict[str, Any]:
-        """Extensible metadata dictionary."""
+        """Extensible metadata dictionary for document-specific information."""
         ...
 
     def as_graph(self) -> CanonicalGraph:
-        """Construct the canonical directed graph."""
+        """Construct the canonical directed graph representation."""
         ...
 
     def validate(self) -> ValidationResult:
-        """Perform deterministic financial validation."""
+        """Perform deterministic financial validation of the document."""
         ...
