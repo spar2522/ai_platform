@@ -6,18 +6,22 @@ and column mappings. Runtime execution remains 100% deterministic.
 
 from __future__ import annotations
 
+import ast
+import inspect
 import json
+import logging
 from pathlib import Path
 import re
 from typing import TYPE_CHECKING, Any
-
 from aip_canonica.learning.strategy import LearnedStrategy, LearningReport
+from aip_canonica.models import Workbook
 from aip_canonica.models.base import CanonicalDocument
 from aip_canonica.models.document_type import DocumentType
-from aip_canonica.models import Workbook
 
 if TYPE_CHECKING:
     from aip_provider import AI
+
+logger = logging.getLogger(__name__)
 
 
 class StrategyLearner:
@@ -46,7 +50,6 @@ class StrategyLearner:
 
     def _find_related_extractor(self, workbook: Workbook) -> tuple[Any | None, str]:
         """Discover if an existing registered specialized extractor already represents this institution."""
-        import inspect
         from aip_canonica.extractors.registry import get_default_registry
 
         registry = get_default_registry()
@@ -57,7 +60,11 @@ class StrategyLearner:
             try:
                 if extractor.matches(workbook):
                     try:
-                        code = inspect.getsource(extractor.__class__)
+                        mod = inspect.getmodule(extractor.__class__)
+                        if mod and hasattr(mod, "__file__") and mod.__file__:
+                            code = Path(mod.__file__).read_text(encoding="utf-8")
+                        else:
+                            code = inspect.getsource(extractor.__class__)
                         return extractor, code
                     except Exception:
                         return extractor, f"# Class {extractor.__class__.__name__} is registered."
@@ -76,7 +83,11 @@ class StrategyLearner:
             ]
             if any(tok in sample_text for tok in name_tokens):
                 try:
-                    code = inspect.getsource(extractor.__class__)
+                    mod = inspect.getmodule(extractor.__class__)
+                    if mod and hasattr(mod, "__file__") and mod.__file__:
+                        code = Path(mod.__file__).read_text(encoding="utf-8")
+                    else:
+                        code = inspect.getsource(extractor.__class__)
                     return extractor, code
                 except Exception:
                     return extractor, f"# Class {extractor.__class__.__name__} is registered."
@@ -230,9 +241,11 @@ Respond ONLY with a JSON object with this schema:
 
         existing_extractor, existing_code = self._find_related_extractor(workbook)
 
-        if strategy.evolution_mode == "evolve_existing":
+        if strategy.evolution_mode == "evolve_existing" and existing_code:
             recommendation = "evolve_existing_extractor"
-            code_snippet = self.generate_extractor_code(strategy, existing_code=existing_code)
+            code_snippet = await self.generate_evolved_extractor_code_async(
+                strategy, existing_code=existing_code, workbook=workbook
+            )
         elif len(additional_fields) > 0 or baseline_document is None:
             recommendation = "create_specialized_extractor"
             code_snippet = self.generate_extractor_code(strategy)
@@ -327,6 +340,74 @@ Respond ONLY with a JSON object with this schema:
                 name=name,
             )
         )
+
+    async def generate_evolved_extractor_code_async(
+        self,
+        strategy: LearnedStrategy,
+        *,
+        existing_code: str,
+        workbook: Workbook,
+    ) -> str:
+        """Synthesize unified multi-layout Python extractor code via AI."""
+        ai = self._get_ai()
+        sample_text = self._summarize_workbook_sample(workbook)
+        clean_name = "".join(part.capitalize() for part in strategy.name.split("_"))
+        if not clean_name.endswith("Extractor"):
+            clean_name += "Extractor"
+
+        system_prompt = (
+            "You are a principal Python software engineer specialized in financial document parsing and extractor architecture for Canonica.\n"
+            "You are given the full Python source code of an existing working Extractor module for a financial institution.\n"
+            "You are also given sample rows from a NEW layout variant of a document from the same institution.\n\n"
+            "Your task is to evolve the existing extractor into a single unified Extractor class that seamlessly supports BOTH:\n"
+            "1. The existing layout (already working in the provided code)\n"
+            "2. The new layout variant (e.g. wrapped multiline PDF rows, or different column orders/headers)\n\n"
+            "Requirements:\n"
+            "- Maintain all existing imports, methods, models, and metadata.\n"
+            "- Implement layout detection in matches() and extract() (e.g. checking whether rows are tabular or multiline/stacked).\n"
+            "- Implement separate clean private helper methods (e.g. _extract_tabular and _extract_multiline) if layouts differ.\n"
+            "- Return ONLY valid, fully implemented, runnable Python code enclosed in ```python ... ``` fences.\n"
+            "- Do NOT use 'raise NotImplementedError', 'pass', or 'TODO'."
+        )
+
+        prompt = f"""EXISTING EXTRACTOR SOURCE CODE:
+```python
+{existing_code}
+```
+
+NEW DOCUMENT LAYOUT VARIANT SAMPLE:
+{sample_text}
+
+LAYOUT SPECIFICATION DETECTED:
+- Institution / Strategy: {strategy.name}
+- Layout Type: {strategy.layout_type}
+- Anchor Keywords: {strategy.anchor_keywords}
+- Header Keywords: {strategy.table_header_keywords}
+- Column Mapping: {strategy.column_mapping}
+- Block Delimiters: {strategy.block_delimiters}
+
+Return the complete evolved Python module code implementing the unified extractor supporting both layouts.
+"""
+        try:
+            response = await ai.generate(prompt=prompt, system_prompt=system_prompt)
+            from aip_canonica.audit import log_token_usage
+
+            log_token_usage(response, title=f"AI Extractor Evolution ({response.model})")
+
+            text = response.text.strip()
+            # Extract code from fences
+            m = re.search(r"```(?:python)?\s*(.*?)\s*```", text, re.DOTALL)
+            code = m.group(1).strip() if m else text
+
+            # Syntax check with ast.parse
+            ast.parse(code)
+            return code
+        except Exception as exc:
+            logger.warning(
+                "[Canonica][AI Learner] Failed to synthesize evolved code via AI: %s. Using fallback synthesis.",
+                exc,
+            )
+            return self.generate_extractor_code(strategy, existing_code=existing_code)
 
     def generate_extractor_code(
         self, strategy: LearnedStrategy, existing_code: str | None = None
@@ -641,14 +722,14 @@ class {clean_name}:
                     return str(v).strip() if v is not None else ""
                 return ""
 
-            txn_date = get_val("date") or get_val("txn_date")
+            txn_date = get_val("date") or get_val("txn_date") or get_val("tran date") or get_val("tran_date")
             if not txn_date or not re.search(r"\\d", txn_date):
                 continue
 
             narration = get_val("description") or get_val("narration") or get_val("particulars")
-            debit_str = get_val("debit") or get_val("withdrawal")
-            credit_str = get_val("credit") or get_val("deposit")
-            balance_str = get_val("balance")
+            debit_str = get_val("debit") or get_val("withdrawal") or get_val("dr")
+            credit_str = get_val("credit") or get_val("deposit") or get_val("cr")
+            balance_str = get_val("balance") or get_val("bal")
 
             debit_dec = parse_decimal(debit_str, default=Decimal("0")) or Decimal("0")
             credit_dec = parse_decimal(credit_str, default=Decimal("0")) or Decimal("0")

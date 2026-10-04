@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
-from aip_canonica.extractors.bank.axis import AxisBankStatementExtractor
 from aip_canonica.extractors.bank.icici import ICICIBankStatementExtractor
 from aip_canonica.extractors.bank.standard import StandardBankStatementExtractor
 from aip_canonica.extractors.base import Extractor
 from aip_canonica.extractors.invoice.tabular import TabularInvoiceExtractor
 from aip_canonica.extractors.ledger.tabular import TabularLedgerExtractor
+from aip_canonica.extractors.bank.axis_bank import AxisBankStatementExtractor
 from aip_canonica.models import Workbook
 
 
@@ -66,11 +66,11 @@ def get_default_registry() -> ExtractorRegistry:
     if _DEFAULT_REGISTRY is None:
         _DEFAULT_REGISTRY = ExtractorRegistry(
             [
-                AxisBankStatementExtractor(),
                 ICICIBankStatementExtractor(),
                 StandardBankStatementExtractor(),
                 TabularInvoiceExtractor(),
                 TabularLedgerExtractor(),
+                AxisBankStatementExtractor(),
             ]
         )
     return _DEFAULT_REGISTRY

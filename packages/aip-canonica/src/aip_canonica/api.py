@@ -383,6 +383,7 @@ def understand(
             audit_info["ai_used"] = True
             audit_info["mode"] = "learning_mode"
             document.metadata["ai_audit"] = audit_info
+            document.metadata["learning_report"] = report
 
             return document
 

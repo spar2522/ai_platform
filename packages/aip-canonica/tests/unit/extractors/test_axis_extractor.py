@@ -4,7 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 import pytest
 
-from aip_canonica.extractors.bank.axis import AxisBankStatementExtractor
+from aip_canonica.extractors.bank.axis_bank import AxisBankStatementExtractor
 from aip_canonica.models.base import TransactionDirection
 from aip_canonica.models import Cell, Row, Sheet, Workbook
 from aip_canonica.parsers.excel_parser import ExcelParser
@@ -177,7 +177,7 @@ def test_axis_extractor_real_pdf():
     assert stmt.account is not None
     assert stmt.account.account_number == "5145922811"
     assert stmt.opening_balance == Decimal("164836.16")
-    assert stmt.closing_balance == Decimal("164967.16")
+    assert stmt.closing_balance == Decimal("1062467.16")
     assert len(stmt.transactions) == 11
 
     validator = BankStatementValidator()

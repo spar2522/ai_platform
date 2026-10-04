@@ -351,6 +351,7 @@ def verify_custom_file(
     learn: bool = False,
     debug: bool = False,
     provider: str = "auto",
+    promote: bool = False,
 ) -> None:
     """Verify an arbitrary user-supplied file."""
     path = Path(file_path).resolve()
@@ -436,10 +437,30 @@ def verify_custom_file(
                 for entry in doc.entries[:3]:
                     print(f"    - {entry.date} | {entry.direction.value.upper():<6} | {entry.amount:>10} | {entry.narration[:40]}")
 
+        if promote and "learning_report" in doc.metadata:
+            report = doc.metadata["learning_report"]
+            if getattr(report, "extractor_file_path", None):
+                from aip_canonica.promotion import promote_extractor
+                try:
+                    promoted = promote_extractor(report.extractor_file_path, category="bank")
+                    print(f"\n{GREEN}✔ [Auto-Promote] Successfully promoted learned extractor to:{RESET} {promoted}")
+                    print(f"  {DIM}Registered in ExtractorRegistry and ready for deterministic execution.{RESET}")
+                except Exception as promo_exc:
+                    print(f"\n{RED}✖ [Auto-Promote Failed]:{RESET} {promo_exc}")
+
         print(f"\n{GREEN}✔ Verification complete.{RESET}\n")
 
     except Exception as exc:
         print(f"{RED}✖ Verification Failed:{RESET} {exc}\n")
+        report = getattr(exc, "details", None)
+        if promote and report and getattr(report, "extractor_file_path", None):
+            from aip_canonica.promotion import promote_extractor
+            try:
+                promoted = promote_extractor(report.extractor_file_path, category="bank")
+                print(f"{GREEN}✔ [Auto-Promote] Successfully promoted synthesized extractor to:{RESET} {promoted}")
+                print(f"  {DIM}Registered in ExtractorRegistry and ready for deterministic execution.{RESET}\n")
+            except Exception as promo_exc:
+                print(f"{RED}✖ [Auto-Promote Failed]:{RESET} {promo_exc}\n")
 
 
 def main() -> None:
@@ -447,6 +468,7 @@ def main() -> None:
     parser.add_argument("--ai", action="store_true", help="Authorize AI integration (Option B fallback & strategy learner)")
     parser.add_argument("--file", type=str, help="Path to any custom file to verify")
     parser.add_argument("--learn", action="store_true", help="Enable learning_mode=True when verifying a custom file")
+    parser.add_argument("--promote", action="store_true", help="Automatically promote synthesized/evolved extractor to the production package")
     parser.add_argument("--debug", action="store_true", help="Print detailed diagnostic trace of parsing, workbook content, and validation")
     parser.add_argument(
         "--provider",
@@ -458,7 +480,14 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.file:
-        verify_custom_file(args.file, use_ai=args.ai, learn=args.learn, debug=args.debug, provider=args.provider)
+        verify_custom_file(
+            args.file,
+            use_ai=args.ai,
+            learn=args.learn,
+            debug=args.debug,
+            provider=args.provider,
+            promote=args.promote,
+        )
     elif args.ai:
         run_deterministic_suite()
         run_ai_suite()
