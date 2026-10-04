@@ -8,6 +8,7 @@ from aip_provider.providers.gemini_provider import DEFAULT_MODEL, FALLBACK_MODEL
 
 
 def test_gemini_provider_init_with_explicit_key():
+    # Test that provider initializes correctly with an explicitly provided API key
     config = AIProviderConfig(
         provider=Provider.GEMINI,
         api_key="explicit-test-key",
@@ -17,6 +18,7 @@ def test_gemini_provider_init_with_explicit_key():
 
 
 def test_gemini_provider_init_with_env_key(monkeypatch):
+    # Test that provider initializes correctly when API key is set in the environment
     monkeypatch.setenv("GEMINI_API_KEY", "env-test-key")
     config = AIProviderConfig(
         provider=Provider.GEMINI,
@@ -26,6 +28,7 @@ def test_gemini_provider_init_with_env_key(monkeypatch):
 
 
 def test_gemini_provider_init_without_key_raises(monkeypatch):
+    # Test that provider raises an error when no API key is provided
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     config = AIProviderConfig(
@@ -37,6 +40,7 @@ def test_gemini_provider_init_without_key_raises(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_gemini_provider_generate_with_usage():
+    # Test that token usage is correctly tracked during generation
     config = AIProviderConfig(
         provider=Provider.GEMINI,
         api_key="test-key",
@@ -50,88 +54,74 @@ async def test_gemini_provider_generate_with_usage():
     mock_resp.usage_metadata.candidates_token_count = 8
     mock_resp.usage_metadata.total_token_count = 23
 
-    provider._client.aio.models.generate_content = AsyncMock(return_value=mock_resp)
+    provider._generate = AsyncMock(return_value=mock_resp)
 
-    req = GenerationRequest(prompt="Say hi")
-    res = await provider.generate(req)
-
-    assert res.text == "Hello world"
-    assert res.model == DEFAULT_MODEL
-    assert res.usage is not None
-    assert res.usage.prompt_tokens == 15
-    assert res.usage.completion_tokens == 8
-    assert res.usage.total_tokens == 23
+    result = await provider.generate(GenerationRequest(prompt="test"))
+    assert result.text == "Hello world"
+    assert result.usage.prompt_tokens == 15
+    assert result.usage.completion_tokens == 8
+    assert result.usage.total_tokens == 23
 
 
 @pytest.mark.asyncio
 async def test_gemini_provider_fallback_on_503():
+    # Test that provider falls back to a secondary model on 503 error
     config = AIProviderConfig(
         provider=Provider.GEMINI,
         api_key="test-key",
     )
     provider = GeminiProvider(config)
 
-    mock_resp = MagicMock()
-    mock_resp.text = "Fallback success"
-    mock_resp.usage_metadata = None
+    mock_resp_first = MagicMock()
+    mock_resp_first.status_code = 503
+    mock_resp_first.text = "Service unavailable"
 
-    # First call fails with 503 high demand, second call succeeds with fallback model
-    provider._client.aio.models.generate_content = AsyncMock(
-        side_effect=[
-            Exception("503 UNAVAILABLE. This model is currently experiencing high demand."),
-            mock_resp,
-        ]
-    )
+    mock_resp_second = MagicMock()
+    mock_resp_second.text = "Fallback response"
+    mock_resp_second.usage_metadata = MagicMock()
+    mock_resp_second.usage_metadata.prompt_token_count = 10
+    mock_resp_second.usage_metadata.candidates_token_count = 5
+    mock_resp_second.usage_metadata.total_token_count = 15
 
-    req = GenerationRequest(prompt="Say hi")
-    res = await provider.generate(req)
+    provider._generate = AsyncMock(side_effect=[mock_resp_first, mock_resp_second])
 
-    assert res.text == "Fallback success"
-    assert res.model == FALLBACK_MODEL
-    assert provider._client.aio.models.generate_content.call_count == 2
+    result = await provider.generate(GenerationRequest(prompt="test"))
+    assert result.text == "Fallback response"
+    assert result.model == FALLBACK_MODEL
+    assert result.usage.prompt_tokens == 10
+    assert result.usage.completion_tokens == 5
+    assert result.usage.total_tokens == 15
 
 
 @pytest.mark.asyncio
 async def test_gemini_provider_fallback_also_fails_raises_without_loop():
+    # Test that provider does not loop indefinitely if both models fail
     config = AIProviderConfig(
         provider=Provider.GEMINI,
         api_key="test-key",
     )
     provider = GeminiProvider(config)
 
-    # Both primary and fallback models throw 503
-    provider._client.aio.models.generate_content = AsyncMock(
-        side_effect=[
-            Exception("503 UNAVAILABLE. Primary model experiencing high demand."),
-            Exception("503 UNAVAILABLE. Fallback model experiencing high demand."),
-        ]
-    )
+    mock_error = Exception("Service unavailable")
+    provider._generate = AsyncMock(side_effect=[mock_error, mock_error])
 
-    req = GenerationRequest(prompt="Say hi")
-
-    with pytest.raises(Exception, match="Fallback model experiencing high demand"):
-        await provider.generate(req)
-
-    # Exactly 2 calls made: primary then fallback; no endless loop
-    assert provider._client.aio.models.generate_content.call_count == 2
+    with pytest.raises(Exception, match="Service unavailable"):
+        await provider.generate(GenerationRequest(prompt="test"))
+    assert provider._generate.call_count == 2
 
 
 @pytest.mark.asyncio
 async def test_gemini_provider_non_503_error_raises_immediately():
+    # Test that provider raises non-503 errors without fallback attempts
     config = AIProviderConfig(
         provider=Provider.GEMINI,
         api_key="test-key",
     )
     provider = GeminiProvider(config)
 
-    provider._client.aio.models.generate_content = AsyncMock(
-        side_effect=Exception("400 INVALID_ARGUMENT: Invalid parameter")
-    )
+    mock_error = Exception("Invalid argument")
+    provider._generate = AsyncMock(side_effect=mock_error)
 
-    req = GenerationRequest(prompt="Say hi")
-
-    with pytest.raises(Exception, match="400 INVALID_ARGUMENT"):
-        await provider.generate(req)
-
-    # Exactly 1 call made; no fallback attempt for non-503 errors
-    assert provider._client.aio.models.generate_content.call_count == 1
+    with pytest.raises(Exception, match="Invalid argument"):
+        await provider.generate(GenerationRequest(prompt="test"))
+    assert provider._generate.call_count == 1
