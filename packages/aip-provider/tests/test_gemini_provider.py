@@ -14,7 +14,6 @@ def test_gemini_provider_init_with_explicit_key():
     )
     provider = GeminiProvider(config)
     assert provider._model == DEFAULT_MODEL
-    assert provider._model == "gemini-3.8-flash"
 
 
 def test_gemini_provider_init_with_env_key(monkeypatch):
@@ -23,7 +22,7 @@ def test_gemini_provider_init_with_env_key(monkeypatch):
         provider=Provider.GEMINI,
     )
     provider = GeminiProvider(config)
-    assert provider._model == "gemini-3.8-flash"
+    assert provider._model == DEFAULT_MODEL
 
 
 def test_gemini_provider_init_without_key_raises(monkeypatch):
@@ -57,7 +56,7 @@ async def test_gemini_provider_generate_with_usage():
     res = await provider.generate(req)
 
     assert res.text == "Hello world"
-    assert res.model == "gemini-3.8-flash"
+    assert res.model == DEFAULT_MODEL
     assert res.usage is not None
     assert res.usage.prompt_tokens == 15
     assert res.usage.completion_tokens == 8
@@ -89,7 +88,6 @@ async def test_gemini_provider_fallback_on_503():
 
     assert res.text == "Fallback success"
     assert res.model == FALLBACK_MODEL
-    assert res.model == "gemini-3.5-flash"
     assert provider._client.aio.models.generate_content.call_count == 2
 
 
@@ -137,4 +135,3 @@ async def test_gemini_provider_non_503_error_raises_immediately():
 
     # Exactly 1 call made; no fallback attempt for non-503 errors
     assert provider._client.aio.models.generate_content.call_count == 1
-
