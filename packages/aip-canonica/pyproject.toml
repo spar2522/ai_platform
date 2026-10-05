@@ -14,6 +14,7 @@ authors = [
 ]
 
 dependencies = [
+    # Core dependencies
     "aip-provider",
     "aip-utils",
     "openpyxl>=3.1",
