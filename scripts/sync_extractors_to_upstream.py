@@ -10,7 +10,9 @@ from pathlib import Path
 import sys
 import time
 
+# Calculate repository root assuming this script is in the `scripts` directory
 repo_root = Path(__file__).resolve().parent.parent
+# Add aip-canonica package to Python path for importing sync_to_upstream
 sys.path.insert(0, str(repo_root / "packages" / "aip-canonica" / "src"))
 
 from aip_canonica.publishing import sync_to_upstream  # noqa: E402
@@ -20,6 +22,10 @@ logger = logging.getLogger("sync_upstream")
 
 
 def main() -> None:
+    """Entry point for upstream sync job.
+
+    Parses command-line arguments and executes sync_to_upstream accordingly.
+    """
     parser = argparse.ArgumentParser(description="Synchronize promoted extractors upstream to GitHub.")
     parser.add_argument("--remote", default="origin", help="Git remote name (default: origin)")
     parser.add_argument("--dry-run", action="store_true", help="Inspect pending extractors without pushing")
