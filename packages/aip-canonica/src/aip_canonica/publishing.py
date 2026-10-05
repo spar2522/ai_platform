@@ -15,7 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 def check_git_status(repo_root: Path) -> list[str]:
-    """Return modified or untracked extractor files in packages/aip-canonica/src/aip_canonica/extractors."""
+    """Return modified or untracked extractor files in packages/aip-canonica/src/aip_canonica/extractors.
+
+    Uses `git status --porcelain` to get a machine-readable list of changes.
+    Filters out files ending with `.promotion.lock` to avoid syncing lock files.
+    """
     res = subprocess.run(
         ["git", "status", "--porcelain", "packages/aip-canonica/src/aip_canonica/extractors/"],
         cwd=repo_root,
@@ -35,7 +39,13 @@ def sync_to_upstream(
     remote: str = "origin",
     dry_run: bool = False,
 ) -> dict[str, str] | None:
-    """Synchronize pending promoted extractors to a dedicated upstream Git branch."""
+    """Synchronize pending promoted extractors to a dedicated upstream Git branch.
+
+    1. Checks for modified extractor files.
+    2. Runs unit tests to ensure no broken extractors are committed.
+    3. Creates a feature branch with a timestamped name.
+    4. Stages, commits, and pushes the changes to the remote.
+    """
     changed_files = check_git_status(repo_root)
     if not changed_files:
         logger.info("[UpstreamSync] No pending extractor changes to synchronize.")
@@ -65,18 +75,28 @@ def sync_to_upstream(
         logger.error(test_res.stdout)
         return {"status": "failed_tests", "error": test_res.stdout}
 
-    # 2. Create feature branch
-    subprocess.run(["git", "checkout", "-b", branch_name], cwd=repo_root, check=True)
+    # Capture current branch before switching
+    original_branch_res = subprocess.run(
+        ["git", "symbolic-ref", "--short", "HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    original_branch = original_branch_res.stdout.strip() if original_branch_res.returncode == 0 else "unknown"
 
     try:
-        # 3. Stage extractors and registry
+        # 2. Create new branch
+        subprocess.run(["git", "checkout", "-b", branch_name], cwd=repo_root, check=True)
+
+        # 3. Stage changes
         subprocess.run(
             ["git", "add", "packages/aip-canonica/src/aip_canonica/extractors/"],
             cwd=repo_root,
             check=True,
         )
 
-        # 4. Commit
+        # 4. Commit changes
         commit_msg = (
             f"feat(extractors): synchronize auto-learned extractors ({timestamp})\n\n"
             "Automatically generated and promoted by Canonica Extractor Engine."
@@ -92,6 +112,7 @@ def sync_to_upstream(
             check=False,
         )
 
+        # 6. Get commit SHA
         commit_sha_res = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=repo_root,
@@ -111,6 +132,12 @@ def sync_to_upstream(
             "pr_url": pr_url,
             "status": "pushed" if push_res.returncode == 0 else "push_failed",
         }
+
     finally:
-        # Return to main or original branch if needed
-        pass
+        # 7. Return to original branch
+        if original_branch != "unknown":
+            try:
+                subprocess.run(["git", "checkout", original_branch], cwd=repo_root, check=True)
+                logger.debug(f"[UpstreamSync] Switched back to original branch: {original_branch}")
+            except Exception as e:
+                logger.warning(f"[UpstreamSync] Failed to switch back to original branch: {original_branch} - {e}")
