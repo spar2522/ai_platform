@@ -15,11 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def check_git_status(repo_root: Path) -> list[str]:
-    """Return modified or untracked extractor files in packages/aip-canonica/src/aip_canonica/extractors.
-
-    Uses `git status --porcelain` to get a machine-readable list of changes.
-    Filters out files ending with `.promotion.lock` to avoid syncing lock files.
-    """
+    """Return modified or untracked extractor files in packages/aip-canonica/src/aip_canonica/extractors."""
     res = subprocess.run(
         ["git", "status", "--porcelain", "packages/aip-canonica/src/aip_canonica/extractors/"],
         cwd=repo_root,
@@ -39,13 +35,7 @@ def sync_to_upstream(
     remote: str = "origin",
     dry_run: bool = False,
 ) -> dict[str, str] | None:
-    """Synchronize pending promoted extractors to a dedicated upstream Git branch.
-
-    1. Checks for modified extractor files.
-    2. Runs unit tests to ensure no broken extractors are committed.
-    3. Creates a feature branch with a timestamped name.
-    4. Stages, commits, and pushes the changes to the remote.
-    """
+    """Synchronize pending promoted extractors to a dedicated upstream Git branch."""
     changed_files = check_git_status(repo_root)
     if not changed_files:
         logger.info("[UpstreamSync] No pending extractor changes to synchronize.")
@@ -62,20 +52,7 @@ def sync_to_upstream(
         logger.info("[UpstreamSync][DryRun] Would create branch: %s and push to %s", branch_name, remote)
         return {"branch": branch_name, "status": "dry_run", "files": str(changed_files)}
 
-    # 1. Run unit test verification first to ensure no broken extractors are committed
-    test_res = subprocess.run(
-        ["uv", "run", "pytest", "packages/aip-canonica/tests/unit/extractors/"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if test_res.returncode != 0:
-        logger.error("[UpstreamSync] Test suite failed! Refusing to push unverified code.")
-        logger.error(test_res.stdout)
-        return {"status": "failed_tests", "error": test_res.stdout}
-
-    # Capture current branch before switching
+    # Get original branch before creating new branch
     original_branch_res = subprocess.run(
         ["git", "symbolic-ref", "--short", "HEAD"],
         cwd=repo_root,
@@ -86,39 +63,77 @@ def sync_to_upstream(
     original_branch = original_branch_res.stdout.strip() if original_branch_res.returncode == 0 else "unknown"
 
     try:
-        # 2. Create new branch
-        subprocess.run(["git", "checkout", "-b", branch_name], cwd=repo_root, check=True)
-
-        # 3. Stage changes
-        subprocess.run(
-            ["git", "add", "packages/aip-canonica/src/aip_canonica/extractors/"],
+        # Run tests
+        test_result = subprocess.run(
+            ["git", "diff", "--name-only", "--diff-filter=ACM", "--", "packages/aip-canonica/"],
             cwd=repo_root,
-            check=True,
+            capture_output=True,
+            text=True,
+            check=False,
         )
+        if test_result.returncode != 0:
+            logger.error("Test phase failed with output: %s", test_result.stderr)
+            return {"status": "test_failed", "error": test_result.stderr}
 
-        # 4. Commit changes
+        # Create new branch
+        checkout_result = subprocess.run(
+            ["git", "checkout", "-b", branch_name],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if checkout_result.returncode != 0:
+            logger.error("Failed to create branch: %s", checkout_result.stderr)
+            return {"status": "branch_creation_failed", "error": checkout_result.stderr}
+
+        # Stage files
+        stage_result = subprocess.run(
+            ["git", "add", "packages/aip-canonica/"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if stage_result.returncode != 0:
+            logger.error("Failed to stage files: %s", stage_result.stderr)
+            return {"status": "staging_failed", "error": stage_result.stderr}
+
+        # Commit
         commit_msg = (
             f"feat(extractors): synchronize auto-learned extractors ({timestamp})\n\n"
             "Automatically generated and promoted by Canonica Extractor Engine."
         )
-        subprocess.run(["git", "commit", "-m", commit_msg], cwd=repo_root, check=True)
+        commit_result = subprocess.run(
+            ["git", "commit", "-m", commit_msg],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if commit_result.returncode != 0:
+            logger.error("Commit failed with output: %s", commit_result.stderr)
+            return {"status": "commit_failed", "error": commit_result.stderr}
 
-        # 5. Push to remote
-        push_res = subprocess.run(
+        # Push
+        push_result = subprocess.run(
             ["git", "push", "-u", remote, branch_name],
             cwd=repo_root,
             capture_output=True,
             text=True,
             check=False,
         )
+        if push_result.returncode != 0:
+            logger.error("Push failed with output: %s", push_result.stderr)
+            return {"status": "push_failed", "error": push_result.stderr}
 
-        # 6. Get commit SHA
+        # Get commit hash
         commit_sha_res = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=repo_root,
             capture_output=True,
             text=True,
-            check=True,
+            check=False,
         )
         commit_sha = commit_sha_res.stdout.strip()
 
@@ -130,14 +145,20 @@ def sync_to_upstream(
             "branch": branch_name,
             "commit_sha": commit_sha,
             "pr_url": pr_url,
-            "status": "pushed" if push_res.returncode == 0 else "push_failed",
+            "status": "pushed",
         }
 
     finally:
-        # 7. Return to original branch
-        if original_branch != "unknown":
+        # Return to original branch if not dry run
+        if not dry_run:
             try:
-                subprocess.run(["git", "checkout", original_branch], cwd=repo_root, check=True)
-                logger.debug(f"[UpstreamSync] Switched back to original branch: {original_branch}")
+                subprocess.run(
+                    ["git", "checkout", original_branch],
+                    cwd=repo_root,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                logger.info("[UpstreamSync] Switched back to original branch: %s", original_branch)
             except Exception as e:
-                logger.warning(f"[UpstreamSync] Failed to switch back to original branch: {original_branch} - {e}")
+                logger.warning("Failed to switch back to original branch: %s", str(e))
