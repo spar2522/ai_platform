@@ -5,40 +5,12 @@ import pytest
 
 from aip_canonica.learning.learner import StrategyLearner
 from aip_canonica.learning.strategy import LearnedStrategy
-from aip_canonica.models import DocumentType, Workbook, Sheet, Row, Cell
+from aip_canonica.models import DocumentType, Workbook
 from aip_provider.models import AIResponse
-
-
-@pytest.fixture
-def mock_ai():
-    """Create a mock AI instance with pre-configured generate method."""
-    mock = AsyncMock()
-    mock.generate.return_value = AIResponse(
-        text="Mock AI response",
-        model="mock-model",
-    )
-    return mock
-
-
-@pytest.fixture
-def test_workbook():
-    """Create a sample workbook for testing."""
-    return Workbook(
-        sheets=[
-            Sheet(
-                name="Page_1",
-                rows=[
-                    Row(index=0, cells=[Cell(value="Statement of Axis Account No : 5145922811", location="A1")]),
-                    Row(index=1, cells=[Cell(value="IFSC Code : UTIB0005157", location="A2")]),
-                ],
-            )
-        ]
-    )
 
 
 @pytest.mark.asyncio
 async def test_strategy_learner_parses_ai_response():
-    """Verify that the learner correctly parses a valid AI response."""
     mock_ai = AsyncMock()
     mock_ai.generate.return_value = AIResponse(
         text="""```json
@@ -68,13 +40,12 @@ async def test_strategy_learner_parses_ai_response():
     assert isinstance(strategy, LearnedStrategy)
     assert strategy.name == "custom_bank_statement"
     assert strategy.document_type == DocumentType.BANK_STATEMENT
-    assert strategy.column_mapping["date"] == "Txn Date"
+    assert "Txn Date" == strategy.column_mapping["date"]
     assert mock_ai.generate.called
 
 
 @pytest.mark.asyncio
 async def test_strategy_learner_handles_malformed_json():
-    """Verify fallback behavior when AI response contains malformed JSON."""
     mock_ai = AsyncMock()
     mock_ai.generate.return_value = AIResponse(
         text="I could not determine the layout format.",
@@ -91,7 +62,8 @@ async def test_strategy_learner_handles_malformed_json():
 
 @pytest.mark.asyncio
 async def test_strategy_learner_evolution_with_existing_extractor():
-    """Verify that the learner can evolve an existing extractor."""
+    from aip_canonica.models import Cell, Row, Sheet
+
     mock_ai = AsyncMock()
     mock_ai.generate.return_value = AIResponse(
         text="""```json
@@ -118,7 +90,17 @@ async def test_strategy_learner_evolution_with_existing_extractor():
         model="mock-model",
     )
 
-    wb = test_workbook()
+    wb = Workbook(
+        sheets=[
+            Sheet(
+                name="Page_1",
+                rows=[
+                    Row(index=0, cells=[Cell(value="Statement of Axis Account No : 5145922811", location="A1")]),
+                    Row(index=1, cells=[Cell(value="IFSC Code : UTIB0005157", location="A2")]),
+                ],
+            )
+        ]
+    )
 
     learner = StrategyLearner(ai=mock_ai)
     strategy = await learner.learn_from_workbook(wb)
