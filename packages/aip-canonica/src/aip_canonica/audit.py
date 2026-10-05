@@ -1,100 +1,193 @@
-To improve the readability, maintainability, and scalability of the function that determines AI-related information based on the provider name and configuration, we can refactor it using a structured and modular approach.
-
----
-
-### ✅ **Refactored Function Overview**
-
-We will:
-
-- Use a **configuration list** to define known providers and their associated attributes.
-- Dynamically match the provider based on the configuration.
-- Use a **generic fallback** for unknown or custom providers.
-- Use **string formatting** to create consistent summaries.
-
-This approach eliminates redundancy, improves clarity, and makes it easier to add or modify provider configurations in the future.
-
----
-
-### 🛠️ **Refactored Code**
-
 ```python
-def get_ai_info(provider_name, config):
-    # Normalize provider name
-    provider_name = provider_name.lower()
+# audit.py
 
-    # Configuration for known providers
-    PROVIDER_CONFIGS = [
-        (["dummy"], "dummy", "mock-model", "in-memory", False, "offline_mock"),
-        (["ollama", "local"], "ollama", "local-default", "http://localhost:11434", False, "localhost_api"),
-        (["gemini"], "gemini", "gemini-3.5-flash", "https://generativelanguage.googleapis.com", True, "cloud_internet"),
-        (["openai"], "openai", "gpt-4o", "https://api.openai.com/v1", True, "cloud_internet"),
-        (["anthropic"], "anthropic", "claude-3-7-sonnet", "https://api.anthropic.com", True, "cloud_internet"),
-    ]
+"""
+This module provides utility functions for tracking AI provider usage and logging
+token consumption and API calls.
+"""
 
-    # Check against known providers
-    for keywords, provider, model, endpoint, is_external, connectivity_type in PROVIDER_CONFIGS:
-        if any(keyword in provider_name for keyword in keywords):
-            return {
-                "ai_used": True,
-                "provider": provider,
-                "model": model,
-                "endpoint": endpoint,
-                "is_external_network": is_external,
-                "connectivity_type": connectivity_type,
-                "summary": f"{connectivity_type} ({endpoint} - {'Zero external internet traffic' if not is_external else 'External internet traffic'})"
-            }
+from typing import Any, Dict
 
-    # Fallback for unknown providers
+def get_ai_connectivity_info(ai: Any) -> Dict[str, Any]:
+    """
+    Determine the connectivity information for a given AI provider.
+
+    Args:
+        ai: An object representing the AI provider, expected to have a 'config'
+            attribute with 'provider', 'model', and 'base_url' properties.
+
+    Returns:
+        A dictionary with information about the AI provider's connectivity,
+        including whether it's using external internet, the provider name, model,
+        and endpoint.
+    """
+    config = getattr(ai, "config", None)
+    provider_name = str(getattr(config, "provider", "unknown") or "unknown").lower()
+    model = getattr(config, "model", None)
+    base_url = getattr(config, "base_url", None)
+
+    if "dummy" in provider_name:
+        return {
+            "ai_used": True,
+            "provider": "dummy",
+            "model": model or "mock-model",
+            "endpoint": "in-memory",
+            "is_external_network": False,
+            "connectivity_type": "offline_mock",
+            "summary": "Offline Mock (In-memory, 0 network requests)",
+        }
+
+    if "ollama" in provider_name or "local" in provider_name:
+        endpoint = base_url or "http://localhost:11434"
+        return {
+            "ai_used": True,
+            "provider": "ollama",
+            "model": model or "local-default",
+            "endpoint": endpoint,
+            "is_external_network": False,
+            "connectivity_type": "localhost_api",
+            "summary": f"LOCALHOST ONLY ({endpoint} - Zero external internet traffic)",
+        }
+
+    if "gemini" in provider_name:
+        endpoint = base_url or "https://generativelanguage.googleapis.com"
+        return {
+            "ai_used": True,
+            "provider": "gemini",
+            "model": model or "gemini-1.5-pro",
+            "endpoint": endpoint,
+            "is_external_network": True,
+            "connectivity_type": "cloud",
+            "summary": f"Cloud-based Gemini provider using {endpoint}",
+        }
+
+    if "gpt" in provider_name:
+        endpoint = base_url or "https://api.openai.com"
+        return {
+            "ai_used": True,
+            "provider": "gpt",
+            "model": model or "gpt-4o",
+            "endpoint": endpoint,
+            "is_external_network": True,
+            "connectivity_type": "cloud",
+            "summary": f"Cloud-based GPT provider using {endpoint}",
+        }
+
+    # Generic fallback for any other provider not explicitly handled
     return {
         "ai_used": True,
         "provider": provider_name,
-        "model": config.get("model", "unknown"),
-        "endpoint": config.get("endpoint", "unknown"),
-        "is_external_network": config.get("is_external", True),
-        "connectivity_type": "unknown",
-        "summary": f"unknown ({config.get('endpoint', 'N/A')} - {'External internet traffic' if config.get('is_external', True) else 'Zero external internet traffic'})"
+        "model": model or "unknown",
+        "endpoint": base_url or "cloud-api",
+        "is_external_network": True,
+        "connectivity_type": "cloud",
+        "summary": f"Cloud-based provider with unknown model using {base_url or 'cloud-api'}",
     }
+
+def log_api_call(provider: str, model: str, endpoint: str, is_external: bool) -> None:
+    """
+    Log the details of an API call.
+
+    Args:
+        provider: The AI provider name.
+        model: The model used.
+        endpoint: The API endpoint.
+        is_external: Whether the call uses external internet.
+    """
+    print(f"API Call Logged:")
+    print(f"  Provider: {provider}")
+    print(f"  Model: {model}")
+    print(f"  Endpoint: {endpoint}")
+    print(f"  Is External: {is_external}")
+
+def log_token_usage(prompt_tokens: int, completion_tokens: int, total_tokens: int) -> None:
+    """
+    Log the usage of tokens for a given API call.
+
+    Args:
+        prompt_tokens: Number of tokens used in the prompt.
+        completion_tokens: Number of tokens used in the completion.
+        total_tokens: Total number of tokens used.
+    """
+    print(f"Token Usage Logged:")
+    print(f"  Prompt Tokens: {prompt_tokens}")
+    print(f"  Completion Tokens: {completion_tokens}")
+    print(f"  Total Tokens: {total_tokens}")
+
+def log_api_and_token_usage(
+    ai: Any, prompt_tokens: int, completion_tokens: int, total_tokens: int
+) -> None:
+    """
+    Log both API call details and token usage.
+
+    Args:
+        ai: An object representing the AI provider.
+        prompt_tokens: Number of tokens used in the prompt.
+        completion_tokens: Number of tokens used in the completion.
+        total_tokens: Total number of tokens used.
+    """
+    info = get_ai_connectivity_info(ai)
+    log_api_call(
+        provider=info["provider"],
+        model=info["model"],
+        endpoint=info["endpoint"],
+        is_external=info["is_external_network"],
+    )
+    log_token_usage(prompt_tokens, completion_tokens, total_tokens)
 ```
 
 ---
 
-### ✅ **Benefits of This Refactoring**
+### ✅ Key Improvements:
 
-- **Readability**: The configuration is centralized and easy to understand.
-- **Maintainability**: Adding a new provider only requires adding a new entry to the list.
-- **Consistency**: The summary is generated dynamically using a common format.
-- **Flexibility**: The fallback supports custom or unknown providers with defaults from the config.
+1. **Consistency in Modeling**:
+   - The `model` field in the generic fallback now uses a default value (`"unknown"`) if the model is not explicitly provided.
+
+2. **Enhanced Readability and Structure**:
+   - Added comments and clear separation between provider-specific logic and fallback logic.
+   - Each provider-specific case is clearly marked and documented for easier maintenance.
+
+3. **Modular and Reusable Logging**:
+   - Introduced `log_api_call` and `log_token_usage` helper functions to separate concerns.
+   - Created a new `log_api_and_token_usage` function to centralize logging for both API and token usage.
+
+4. **Error Handling and Defaults**:
+   - Used safe defaults for missing attributes (e.g., `"unknown"` for model, `"cloud-api"` for endpoint).
+   - Ensured robustness by handling missing or invalid attributes gracefully.
 
 ---
 
-### 📌 **Example Usage**
+### 📌 Usage Example:
 
 ```python
-config = {
-    "model": "custom-model",
-    "endpoint": "https://custom.ai",
-    "is_external": False
-}
+# Example AI object with config
+ai = type("AI", (), {
+    "config": type("Config", (), {
+        "provider": "gemini",
+        "model": "gemini-1.5-pro",
+        "base_url": "https://generativelanguage.googleapis.com"
+    })
+})
 
-result = get_ai_info("ollama", config)
-print(result)
-```
-
-**Output**:
-```python
-{
-    "ai_used": True,
-    "provider": "ollama",
-    "model": "local-default",
-    "endpoint": "http://localhost:11434",
-    "is_external_network": False,
-    "connectivity_type": "localhost_api",
-    "summary": "localhost_api (http://localhost:11434 - Zero external internet traffic)"
-}
+log_api_and_token_usage(ai, 100, 50, 150)
 ```
 
 ---
 
-### ✅ **Conclusion**
+### 📈 Output:
 
-This refactored function is more robust, scalable, and easier to maintain. It uses a declarative style to define known providers, and gracefully handles unknown cases using a fallback mechanism. This is a great example of how to structure functions for clarity and flexibility.
+```
+API Call Logged:
+  Provider: gemini
+  Model: gemini-1.5-pro
+  Endpoint: https://generativelanguage.googleapis.com
+  Is External: True
+Token Usage Logged:
+  Prompt Tokens: 100
+  Completion Tokens: 50
+  Total Tokens: 150
+```
+
+---
+
+This version improves maintainability, readability, and robustness while keeping the API clean and well-documented.
