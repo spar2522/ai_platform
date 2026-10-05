@@ -1,110 +1,90 @@
-The provided code implements a two-tier PDF parsing system: **deterministic parsing** (using PyPDF2 for text extraction) and **AI fallback** (using an AI model for OCR and structured data extraction). Below is a breakdown of its functionality, potential issues, and suggestions for improvement.
+The provided code implements a dual-layer PDF parsing strategy, combining **deterministic text extraction** for structured documents with an **AI-powered fallback** for scanned or image-based PDFs. Below is a breakdown of its structure, functionality, and potential areas for improvement:
 
 ---
 
-### **Key Components and Workflow**
+### **Core Functionality**
 
-1. **Main Parser (`parse` Method)**:
-   - **Deterministic Parsing**: Uses `PyPDF2` to extract text line by line, tokenizes each line into cells, and constructs a `Workbook` object.
-   - **AI Fallback**: If deterministic parsing fails (e.g., insufficient content), the AI fallback is triggered to reconstruct the table structure using an AI model.
-   - **Validation**: Checks if the parsed content meets minimum character and row thresholds (`min_chars`, `min_rows`).
+#### **1. Deterministic Parser (`_parse_deterministic`)**
+- **Purpose**: Extract text from vector-based PDFs (e.g., text-heavy documents) using heuristics.
+- **Steps**:
+  - Uses `PyPDF2` to read pages.
+  - Tokenizes lines into cells by detecting delimiters (tabs, pipes, commas, spaces).
+  - Constructs a `Workbook` of `Sheet` objects with `Row` and `Cell` entries.
+- **Limitations**:
+  - Struggles with complex tables, merged cells, or irregular formatting.
+  - Relies on simple delimiter-based splitting, which may fail for non-standard layouts.
 
-2. **Deterministic Tokenization (`_tokenize_line`)**:
-   - Uses heuristics to split lines into tokens based on:
-     - Tabs (`\t`)
-     - Pipes (`|`)
-     - Commas (CSV-style)
-     - Multiple spaces (common in vector PDFs)
-   - Falls back to single-token parsing if no delimiters are found.
-
-3. **AI Fallback (`parse_ai_fallback`)**:
-   - Sends a structured prompt to the AI model, including:
-     - File name and size
-     - Reason for AI parsing
-     - Partial content from deterministic parsing (if available)
-   - Expects the AI to return a JSON-formatted structure of sheets and rows.
-   - Converts the AI response into a `Workbook` object.
-
-4. **Error Handling**:
-   - Returns the deterministic `Workbook` if AI parsing fails but partial content exists.
-   - Raises a `ValueError` if both parsers fail.
+#### **2. AI Fallback (`parse_ai_fallback` / `_parse_with_ai`)**
+- **Purpose**: Handle scanned/image PDFs or cases where deterministic parsing fails.
+- **Steps**:
+  - Uses an AI model (e.g., Gemini) to extract tables and metadata.
+  - Generates a JSON schema of the workbook, which is parsed into a structured `Workbook` object.
+- **Key Features**:
+  - Asynchronous execution with `asyncio` and `ThreadPoolExecutor`.
+  - Uses a prompt to guide the AI to return a specific JSON format.
+- **Limitations**:
+  - Relies on the AI's ability to interpret the document.
+  - No fallback if the AI response is malformed or incomplete.
 
 ---
 
-### **Potential Issues and Limitations**
-
-1. **Deterministic Parser Limitations**:
-   - **Inability to handle complex tables**: Text alignment, merged cells, or non-uniform spacing may lead to incorrect tokenization.
-   - **OCR Scanned PDFs**: Fails entirely for scanned PDFs (no text extraction), relying solely on AI fallback.
-
-2. **AI Fallback Risks**:
-   - **Unreliable AI Output**: The AI may return invalid JSON, ambiguous structures, or omit data.
-   - **Prompt Dependency**: The effectiveness depends heavily on the quality of the prompt and the AI's ability to interpret financial documents.
-
-3. **Error Handling Gaps**:
-   - **No fallback for invalid AI JSON**: If the AI returns malformed JSON, the code will crash during `json.loads()`.
-   - **No retry logic**: If the AI fails once, it doesn't retry with adjusted prompts.
-
-4. **Performance**:
-   - The use of `asyncio` and threading may complicate debugging or integration in non-async environments.
+### **Error Handling and Validation**
+- **Deterministic Check (`_is_sufficient_content`)**:
+  - Validates if the deterministic parser produced enough content (minimum rows/characters).
+- **Fallback Logic**:
+  - If deterministic parsing fails, the AI fallback is triggered.
+  - If AI parsing also fails, a `ValueError` is raised.
+- **Potential Improvements**:
+  - Add retries or fallback strategies for AI parsing failures.
+  - Validate AI-generated JSON against a schema (e.g., using `jsonschema`) to avoid malformed data errors.
 
 ---
 
-### **Suggestions for Improvement**
-
-#### 1. **Enhance Deterministic Parsing**
-   - **Add support for table detection**: Use libraries like `pdfplumber` or `camelot-py` for better table extraction in vector PDFs.
-   - **Improve tokenization**: Use regular expressions or machine learning models to detect column boundaries in messy text.
-
-#### 2. **Robust AI Fallback Handling**
-   - **Validate AI Output**: Add checks for JSON validity and schema compliance before parsing.
-   - **Fallback to Partial Data**: If AI fails, return the best available data from deterministic parsing (even if incomplete).
-   - **Retry with Adjusted Prompts**: If AI returns invalid data, retry with a revised prompt (e.g., "Please ensure all tables are included").
-
-#### 3. **Error Handling and Logging**
-   - **Catch exceptions in AI parsing**:
-     ```python
-     try:
-         data = json.loads(content)
-     except json.JSONDecodeError as e:
-         logger.error("Invalid JSON from AI: %s", e)
-         return None
-     ```
-   - **Log AI response content**: Include the raw AI response in logs for debugging.
-
-#### 4. **Optimize Performance**
-   - **Simplify threading**: If threading is not critical, consider synchronous AI parsing for simplicity.
-   - **Batch processing**: For large PDFs, process pages in parallel.
-
-#### 5. **Testing and Validation**
-   - **Test edge cases**:
-     - Scanned PDFs with no text.
-     - Tables with merged cells or irregular spacing.
-     - Documents with mixed text and tables.
-   - **Validate output**: Ensure the `Workbook` structure matches expected formats (e.g., correct cell locations, sheet names).
+### **Code Structure and Design**
+- **Modular Design**:
+  - Separates deterministic and AI parsing into distinct methods.
+  - Uses helper functions for tokenization, JSON parsing, and workbook construction.
+- **Asynchronous Handling**:
+  - Properly uses `asyncio` and threading to avoid blocking the main thread.
+- **Potential Improvements**:
+  - Simplify the `ThreadPoolExecutor` logic for better readability.
+  - Include more detailed logging for AI parsing steps (e.g., prompt inputs/outputs).
 
 ---
 
-### **Example Usage**
+### **Areas for Enhancement**
+1. **Deterministic Parser Improvements**:
+   - Integrate libraries like `pdfplumber` or `pdfminer` for better table detection.
+   - Handle merged cells, non-uniform spacing, and complex layouts.
 
+2. **AI Fallback Robustness**:
+   - Add schema validation for AI-generated JSON.
+   - Use more specific prompts to guide the AI (e.g., examples of expected output).
+   - Include error recovery mechanisms (e.g., retrying AI parsing with adjusted prompts).
+
+3. **Edge Case Handling**:
+   - Improve tokenization heuristics (e.g., handle mixed delimiters, line breaks within cells).
+   - Add support for multi-page tables with consistent headers.
+
+4. **Performance Optimization**:
+   - Cache AI model responses for frequently processed documents.
+   - Optimize asynchronous execution for large PDFs.
+
+---
+
+### **Example Use Case**
+For a **vector-based PDF** with tabular data:
 ```python
-from canonica.parser import PDFParser
-from aip_canonica.ai import AI
+parser = Parser(min_chars=100, min_rows=10)
+workbook = parser.parse("document.pdf")
+```
 
-# Initialize parser with AI fallback
-ai = AI.local()  # or AI.gemini("your-api-key")
-parser = PDFParser(ai=ai, min_chars=100, min_rows=5)
-
-# Parse a PDF
-workbook = parser.parse(Path("example.pdf"))
-if workbook:
-    print(f"Parsed {len(workbook.sheets)} sheets with {sum(len(s.rows) for s in workbook.sheets)} rows.")
-else:
-    print("Failed to parse the document.")
+For a **scanned PDF**:
+```python
+workbook = parser.parse_ai_fallback("scanned_document.pdf", reason="Image-based text extraction failed")
 ```
 
 ---
 
 ### **Conclusion**
-
-This system provides a robust fallback strategy for PDF parsing but requires careful handling of edge cases and AI output. Enhancing deterministic parsing, improving AI error handling, and validating outputs will increase reliability. For scanned PDFs, the AI fallback is critical, but its success depends on prompt design and model capabilities.
+The code provides a solid foundation for PDF parsing, balancing deterministic and AI-driven approaches. However, to improve reliability and handle edge cases, enhancements in tokenization, AI prompt engineering, and error handling are recommended. Integrating advanced libraries and schema validation can further strengthen the solution.
