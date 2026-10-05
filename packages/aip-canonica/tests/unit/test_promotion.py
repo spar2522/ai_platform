@@ -69,45 +69,49 @@ def get_default_registry() -> ExtractorRegistry:
 
 
 def test_find_extractor_class_name():
+    """Verify that the class name is correctly extracted from source code."""
     name = find_extractor_class_name(SAMPLE_EXTRACTOR_CODE)
     assert name == "MockTestExtractor"
 
 
 def test_register_extractor_in_registry(tmp_path: Path):
-    reg_file = tmp_path / "registry.py"
-    reg_file.write_text(SAMPLE_REGISTRY_CODE, encoding="utf-8")
+    """Verify that extractors are correctly registered in the registry file."""
+    registry_file = tmp_path / "registry.py"
+    registry_file.write_text(SAMPLE_REGISTRY_CODE, encoding="utf-8")
 
     updated = register_extractor_in_registry(
-        registry_file=reg_file,
+        registry_file=registry_file,
         category="bank",
         module_slug="mock_test",
         class_name="MockTestExtractor",
     )
-    assert updated is True
+    assert updated is True, "Extractor should be successfully registered"
 
-    content = reg_file.read_text(encoding="utf-8")
+    content = registry_file.read_text(encoding="utf-8")
     assert "from aip_canonica.extractors.bank.mock_test import MockTestExtractor" in content
-    assert "MockTestExtractor()," in content
+    assert "MockTestExtractor()," in content, "Extractor should be added to registry list"
 
-    # Calling again should be idempotent
+    # Verify idempotency - second call should not modify registry
     second_updated = register_extractor_in_registry(
-        registry_file=reg_file,
+        registry_file=registry_file,
         category="bank",
         module_slug="mock_test",
         class_name="MockTestExtractor",
     )
-    assert second_updated is False
+    assert second_updated is False, "Second registration should be idempotent"
 
 
 def test_promote_extractor_end_to_end(tmp_path: Path):
+    """Verify end-to-end promotion of an extractor to the correct location."""
     source_file = tmp_path / "mock_test_strategy_extractor.py"
     source_file.write_text(SAMPLE_EXTRACTOR_CODE, encoding="utf-8")
 
     extractors_root = tmp_path / "extractors"
     extractors_root.mkdir(parents=True)
-    reg_file = extractors_root / "registry.py"
-    reg_file.write_text(SAMPLE_REGISTRY_CODE, encoding="utf-8")
+    registry_file = extractors_root / "registry.py"
+    registry_file.write_text(SAMPLE_REGISTRY_CODE, encoding="utf-8")
 
+    # Promote extractor to standard location with auto-registration
     promoted_file = promote_extractor(
         source_path=source_file,
         category="bank",
@@ -116,27 +120,29 @@ def test_promote_extractor_end_to_end(tmp_path: Path):
         format_code=False,
     )
 
-    assert promoted_file.exists()
-    assert promoted_file.name == "mock_test.py"
-    reg_content = reg_file.read_text(encoding="utf-8")
-    assert "MockTestExtractor" in reg_content
+    assert promoted_file.exists(), "Promoted file should be created"
+    assert promoted_file.name == "mock_test.py", "Promoted file should have correct name"
+    registry_content = registry_file.read_text(encoding="utf-8")
+    assert "MockTestExtractor" in registry_content, "Registry should include promoted extractor"
 
 
 def test_promotion_lock_concurrency(tmp_path: Path):
-    lock_file = tmp_path / ".promotion.lock"
+    """Verify that promotion lock correctly serializes concurrent operations."""
+    lock_path = tmp_path / ".promotion.lock"
     counter = 0
 
     def worker():
         nonlocal counter
-        with promotion_lock(lock_file):
+        with promotion_lock(lock_path):
             val = counter
-            # Simulated work
+            # Simulate work that requires exclusive access
             counter = val + 1
 
+    # Create and start multiple threads to test concurrency
     threads = [threading.Thread(target=worker) for _ in range(10)]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
 
-    assert counter == 10
+    assert counter == 10, "All threads should complete successfully with synchronized access"
