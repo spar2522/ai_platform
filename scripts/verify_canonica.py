@@ -1,141 +1,120 @@
-The provided Python script is part of a document verification system designed to process and validate structured documents such as **bank statements**, **invoices**, and **ledgers**. It leverages AI for advanced extraction tasks and includes features for **debugging**, **learning**, and **automated promotion** of extractors. Below is a structured overview of its key components and usage.
+The provided Python script is part of a **document verification and extraction system** called **Canonica**, designed to analyze and extract structured data from various document types (e.g., bank statements, invoices, ledgers). It leverages **AI integration** (e.g., Gemini) for advanced processing, while also supporting deterministic (non-AI) workflows. Below is a structured breakdown of its key components and functionality:
 
 ---
 
-### **Key Features and Functionality**
+### **1. Core Function: `verify_custom_file()`**
+This function is the **main entry point** for verifying user-provided files. It performs the following tasks:
 
-#### **1. Document Verification Workflow**
-- **Input**: A file (e.g., Excel, PDF) with financial data.
-- **Processing**:
-  - Parses the document using `understand()` (likely via `aip_canonica`).
-  - Validates extracted data using `validate()`.
-  - Extracts metadata, audit logs, and connectivity details (e.g., AI provider used, network usage).
-- **Output**:
-  - Summary of document type, validation status, and extracted data (e.g., transactions, line items).
-  - Debug traces (if enabled) showing raw workbook content and parsing diagnostics.
+#### **a. Initialization**
+- **File Validation**: Checks if the provided file exists.
+- **AI Setup**:
+  - Initializes an AI instance (Gemini or local) based on the `provider` argument.
+  - Falls back to deterministic mode if AI initialization fails.
+- **Debug Mode**: If enabled, parses the document and prints a debug trace of the workbook content.
 
-#### **2. AI Integration**
-- **Options**:
-  - **AI OCR Fallback**: Used for scanned/raster documents.
-  - **AI Strategy Learner**: Analyzes multi-line layouts to synthesize extractors.
-- **Providers**:
-  - **Gemini**: Requires a `GEMINI_API_KEY` environment variable.
-  - **Local**: Uses a local AI model (fallback if Gemini fails).
-- **Mode Selection**:
-  - Deterministic (no AI) or AI-driven (based on `--ai` flag).
+#### **b. Document Processing**
+- **Understanding the Document**: Calls `understand()` with the file path, which likely parses the document and extracts structured data (e.g., tables, text, metadata).
+- **Validation**: Runs a validation check to ensure the extracted data meets expected formats and standards.
 
-#### **3. Learning and Promotion**
-- **Learning Mode**:
-  - Triggers AI to create/evolve extractors for complex document layouts.
-- **Promotion**:
-  - Automatically registers learned extractors into the `ExtractorRegistry` (via `promote_extractor()`).
-
-#### **4. Debugging and Validation**
-- **Debug Mode**:
-  - Prints raw workbook content, parsing steps, and validation errors.
-- **Validation**:
-  - Checks if extracted data meets schema requirements (e.g., correct fields, types).
+#### **c. Output and Reporting**
+- **Success/Failure Status**: Prints whether the verification succeeded or failed, along with elapsed time and validation results.
+- **Document-Specific Details**:
+  - For **BankStatements**, displays account numbers, balances, and sample transactions.
+  - For **Invoices**, shows invoice numbers, dates, total amounts, and line items.
+  - For **Ledgers**, lists entries with dates, directions (debit/credit), amounts, and descriptions.
+- **AI Audit**: Displays metadata about the AI used (provider, model, network traffic, etc.).
+- **Promotion of Extractors**:
+  - If `--promote` is enabled, it automatically registers a **learned extractor** (from AI training) into the production system for deterministic execution.
 
 ---
 
-### **Command-Line Usage**
+### **2. Key Components and Concepts**
 
-Run the script with the following commands:
+#### **a. Document Types**
+The system supports three primary document types:
+- **`BankStatement`**: Extracts account details, balances, and transaction records.
+- **`Invoice`**: Parses invoice numbers, dates, line items, and total amounts.
+- **`Ledger`**: Processes entries with dates, directions (debit/credit), and narrations.
 
-#### **Verify a Custom File**
-```bash
-python script.py --file path/to/document.xlsx --ai --promote --debug
-```
-- `--file`: Path to the document.
-- `--ai`: Enable AI-based extraction.
-- `--promote`: Automatically promote learned extractors.
-- `--debug`: Print detailed diagnostics.
+#### **b. AI Integration**
+- **Gemini Provider**: Uses Google's Gemini API for advanced OCR and layout analysis.
+- **Local AI**: Falls back to a local AI model if Gemini is unavailable.
+- **Learning Mode**: Enables the system to **synthesize specialized extractors** for complex layouts (e.g., multi-line tables).
 
-#### **Run AI Suite (No File)**
-```bash
-python script.py --ai
-```
-- Tests AI OCR fallback and strategy learner on pre-defined test cases.
+#### **c. Debug Mode**
+- Prints a detailed **trace of the parsed workbook**, including:
+  - Sheet names and content previews.
+  - Row-by-row cell values (truncated for readability).
+  - Information about vector text, OCR requirements, and AI strategy recommendations.
 
-#### **Run Deterministic Suite**
-```bash
-python script.py
-```
-- Validates documents without AI (default behavior).
+#### **d. Promotion of Extractors**
+- If enabled, the system **automatically registers** a learned extractor into the production package, making it available for deterministic execution in future runs.
 
 ---
 
-### **Dependencies and Setup**
+### **3. Command-Line Interface (`main()` Function)**
+The script uses `argparse` to handle command-line arguments:
+- **`--ai`**: Enables AI integration (OCR fallback and strategy learning).
+- **`--file`**: Specifies a custom file to verify.
+- **`--learn`**: Enables learning mode for AI-driven extractor synthesis.
+- **`--promote`**: Automatically promotes learned extractors to production.
+- **`--debug`**: Enables detailed diagnostic logging.
+- **`--provider`**: Chooses the AI provider (`gemini`, `local`, or `auto`).
 
-1. **Required Packages**:
-   - `aip_canonica` and `aip_provider` (custom or internal libraries).
-   - `argparse` (standard library).
-   - `colorama` (for terminal color formatting).
-   - `pathlib` (for file path handling).
-
-2. **Environment Variables**:
-   - `GEMINI_API_KEY`: Required for Gemini AI provider.
-
-3. **Installation**:
-   - Ensure all dependencies are installed (e.g., via `pip install -r requirements.txt` if a `requirements.txt` exists).
-
----
-
-### **Error Handling and Fallbacks**
-
-- **Missing File**:
-  - Script exits with a `File not found` error.
-- **AI Initialization Failure**:
-  - Falls back to deterministic mode (no AI).
-- **Validation Failures**:
-  - Reports errors and, if `--promote` is enabled, attempts to promote synthesized extractors.
+#### **Execution Flow**
+- If a file is provided via `--file`, it runs `verify_custom_file()` with the specified options.
+- If no file is provided, it runs:
+  - `run_deterministic_suite()` (non-AI workflows).
+  - `run_ai_suite()` (AI-based workflows) if `--ai` is enabled.
 
 ---
 
-### **Example Output**
-
-For a **bank statement**:
-```
-✔ Successfully Extracted: BankStatement in 120ms
-  Document Type: BANK_STATEMENT
-  Validation Status: PASSED
-
-  Audit & Connectivity:
-    • Mode: AI
-    • AI Used: YES
-    • Provider: Gemini
-    • Network: EXTERNAL INTERNET
-    • Endpoint: https://api.gemini.com
-
-  Account: 123456789
-  Opening Balance: USD 10000
-  Closing Balance: USD 12000
-  Transactions Extracted: 50
-
-  Sample Transactions (First 3):
-    - 2023-10-01 | DEBIT   |    200.00 | Grocery Purchase
-    - 2023-10-02 | CREDIT  |   5000.00 | Salary Deposit
-    - 2023-10-03 | DEBIT   |    100.00 | Online Payment
-```
+### **4. Key Dependencies and Assumptions**
+- **External Libraries**:
+  - `Path` from `pathlib` for file path handling.
+  - `aip_canonica` module (not shown) for AI integration, validation, and promotion.
+- **Undocumented Functions**:
+  - `understand()`, `validate()`, `parse_document()`, and `promote_extractor()` are assumed to be defined elsewhere in the system.
+- **Error Handling**:
+  - Catches exceptions during AI initialization, parsing, and promotion, providing fallback options or informative error messages.
 
 ---
 
-### **Use Cases**
-
-- **Financial Institutions**: Validate and extract data from customer documents.
-- **Document Processing Pipelines**: Automate data extraction with AI fallback.
-- **Testing**: Verify AI strategies and extractor robustness.
-
----
-
-### **Potential Improvements**
-
-- **Error Recovery**: Add more detailed error messages for failed AI calls.
-- **Modularization**: Separate core logic into reusable modules.
-- **Documentation**: Provide clear documentation for `aip_canonica` and `aip_provider`.
+### **5. Use Cases**
+- **Verify Custom Files**: Analyze user-provided documents (e.g., Excel sheets, PDFs) for structured data extraction.
+- **AI Strategy Testing**: Evaluate AI-driven OCR and layout analysis for complex documents.
+- **Extractor Development**: Learn and promote custom extractors for specific document formats.
+- **Debugging**: Inspect raw workbook content and AI audit logs for troubleshooting.
 
 ---
 
-### **Conclusion**
+### **6. Example Workflow**
+1. **Run with AI and Debug**:
+   ```bash
+   python script.py --ai --file path/to/document.xlsx --debug
+   ```
+   - Parses the document, displays a content preview, and checks for AI integration.
+   - Validates the extracted data and prints audit logs.
 
-This script is a robust tool for verifying and extracting structured data from documents, with AI capabilities for handling complex layouts. It balances deterministic processing with intelligent fallbacks and learning strategies. Proper setup and dependency management are critical for its successful execution.
+2. **Promote a Learned Extractor**:
+   ```bash
+   python script.py --file path/to/document.xlsx --promote
+   ```
+   - Automatically registers the learned extractor for future deterministic use.
+
+3. **Run AI Suite**:
+   ```bash
+   python script.py --ai
+   ```
+   - Tests AI OCR fallback and strategy learning on predefined documents.
+
+---
+
+### **7. Limitations and Notes**
+- **AI Dependency**: Requires access to Gemini API or a local AI model for advanced features.
+- **Document Type Specificity**: The script assumes the existence of `BankStatement`, `Invoice`, and `Ledger` classes for structured data extraction.
+- **Customization**: The actual parsing logic (e.g., `understand()`, `validate()`) is not shown and would need to be implemented or extended.
+
+---
+
+This script is a **modular, extensible framework** for document verification, combining deterministic processing with AI-driven capabilities to handle a wide range of use cases.
