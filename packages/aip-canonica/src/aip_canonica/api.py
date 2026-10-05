@@ -1,148 +1,132 @@
-The provided Python code is part of a **document processing pipeline** designed to extract structured data from PDFs using a combination of **deterministic parsing**, **AI OCR fallback**, and **AI-driven strategy learning**. Here's a structured breakdown of its functionality and key components:
+The provided Python code is a **document processing pipeline** for extracting structured data from PDFs (or similar document formats) using a combination of **deterministic parsing**, **AI OCR fallback**, and **AI-driven learning strategies**. Below is a breakdown of the key components and logic of this system:
 
 ---
 
-### **1. Core Functionality Overview**
-The code processes a PDF document through three main **extraction strategies**:
+### **1. Core Workflow Overview**
 
-#### **A. Deterministic Parsing (Option A)**
-- **Goal**: Extract data using predefined rules (e.g., table structure, row/column parsing).
-- **Validation**:
-  - Checks if the document has **sufficient text** (`total_rows >= 3` and `total_chars >= 50`).
-  - If valid, it bypasses AI OCR and routes directly to **AI Strategy Learning** if `learning_mode=True`.
-- **Failure Handling**:
-  - If deterministic parsing fails or produces incomplete data, it triggers **AI fallback**.
+The pipeline operates in **three main modes**:
+
+1. **Deterministic Extraction** (Option A):  
+   - Uses predefined rules or extractors to parse the document.  
+   - Fails if the document lacks sufficient text or structure.  
+   - Logs results and triggers fallback if validation fails.  
+
+2. **AI OCR Fallback** (Option B):  
+   - Engages an AI-powered OCR parser if deterministic extraction fails or is incomplete.  
+   - Used when `ai` is provided and the deterministic output is invalid.  
+
+3. **AI Strategy Learner** (Option C):  
+   - In **learning_mode=True**, an AI analyzes the document's structure and generates a **specialized extractor**.  
+   - Used to improve future extractions by capturing richer metadata (e.g., bank-specific fields).  
+
+---
+
+### **2. Key Logic and Conditions**
+
+#### **A. Deterministic Extraction (Option A)**
+
+- **Triggered** when:
+  - `learning_mode=False` and `ai=None` (no AI fallback).
+- **Validation Checks**:
+  - Checks if the extracted document has **≥3 rows** and **≥50 characters** of text (to ensure sufficient content).
+  - If valid, logs success and skips AI fallback.
+  - If invalid, triggers AI fallback (Option B) if `ai` is provided.
+
+```python
+has_sufficient_text = total_rows >= 3 and total_chars >= 50
+```
 
 #### **B. AI OCR Fallback (Option B)**
-- **Triggered when**:
-  - Deterministic parsing fails.
-  - `ai` is provided (an AI instance for OCR).
+
+- **Triggered** when:
+  - Deterministic extraction fails.
+  - `ai` is provided (not `None`).  
 - **Process**:
-  - Uses `PdfParser` to perform **multimodal AI OCR**.
-  - Parses the document again with AI, generating an `ai_workbook`.
-  - Validates the AI-generated document using a specialized or generic extractor.
-- **Logging**:
-  - Logs detailed error messages if AI fallback is required.
+  - Uses `PdfParser.parse_ai_fallback()` to re-extract the document using AI OCR.
+  - If successful, revalidates the result using the same extractor logic.
 
-#### **C. AI Strategy Learning (Option C)**
-- **Triggered when**:
-  - `learning_mode=True` and AI fallback fails or is not sufficient.
-- **Process**:
-  - Uses a `StrategyLearner` to **analyze the document structure** and **synthesize a specialized extractor**.
-  - Generates a **candidate strategy** for future document processing.
-- **Output**:
-  - Returns a `ValidationReport` with the synthesized strategy.
-
----
-
-### **2. Key Components and Flow**
-
-#### **Input Parameters**
-- `target_path`: Path to the PDF document.
-- `ai`: An AI instance (e.g., for OCR or strategy learning).
-- `learning_mode`: Boolean flag to enable AI-driven strategy learning.
-- `validate`: Boolean flag to enforce validation checks.
-
-#### **Variables and Checks**
-- **`total_rows` and `total_chars`**:
-  - Calculated from the parsed workbook to determine if deterministic parsing is viable.
-- **`has_sufficient_text`**:
-  - Ensures the document has enough content for deterministic parsing.
-- **`ai_fallback_triggered`**:
-  - Tracks whether AI fallback was used.
-
-#### **Validation and Error Handling**
-- **`validate_document(document)`**:
-  - Performs deterministic financial reconciliation checks.
-- **Error Handling**:
-  - Raises `ValidationError` or `UnsupportedDocumentError` if validation fails.
-  - Logs errors with detailed messages and stack traces.
-
-#### **Audit and Metadata**
-- **`ai_audit`**:
-  - Stores metadata about AI usage (e.g., provider, mode, connectivity).
-- **`learning_report`**:
-  - Stores the output of `StrategyLearner` analysis for auditing.
-
----
-
-### **3. Conditional Logic and Flow Control**
-The code uses **nested conditional checks** to handle different scenarios:
-- **If deterministic parsing succeeds**:
-  - Returns the validated document.
-- **If AI fallback is triggered**:
-  - Parses the document using AI OCR and validates the result.
-- **If learning mode is enabled**:
-  - Uses `StrategyLearner` to synthesize a specialized extractor, even if validation fails.
-
----
-
-### **4. Key Classes and Modules**
-- **`ParserFactory`**:
-  - Creates appropriate parsers (e.g., `PdfParser`) based on the document type.
-- **`PdfParser`**:
-  - Handles AI OCR fallback and AI-driven parsing.
-- **`StrategyLearner`**:
-  - Analyzes document structure to synthesize a **candidate extractor strategy**.
-- **`ValidationResult`**:
-  - Encapsulates the outcome of document validation (e.g., errors, warnings).
-
----
-
-### **5. Logging and Debugging**
-- **Detailed Logging**:
-  - Logs every major decision point (e.g., success/failure of parsing, AI fallback, strategy learning).
-  - Uses **dividers** (`=`) to separate log sections for readability.
-- **Audit Trail**:
-  - Stores AI usage, validation outcomes, and learning reports in the document's metadata.
-
----
-
-### **6. Limitations and Considerations**
-- **Dependencies**:
-  - Relies on external modules (`aip_canonica`, `ParserFactory`, etc.) not shown in the code.
-- **Error Handling**:
-  - May need refinement for edge cases (e.g., AI OCR failing repeatedly).
-- **Performance**:
-  - AI fallback and strategy learning could be computationally intensive.
-- **Learning Mode**:
-  - Requires an explicit `ai` instance to function; otherwise, it raises a `ValueError`.
-
----
-
-### **7. Example Use Case**
 ```python
-# Example of using the pipeline
-from aip_canonica.parsers.parser_factory import ParserFactory
-from aip_canonica.ai import AI
+ai_workbook = parser.parse_ai_fallback(...)
+ai_doc, ai_name, ai_is_gen, ai_reasons = _try_extract_canonical_document(...)
+```
 
-# Assume ai is an initialized AI instance (e.g., AI.local() or AI.gemini(...))
-ai = AI.local()
-target_path = Path("example_document.pdf")
+#### **C. AI Strategy Learner (Option C)**
 
-# Process the document
-document = process_document(
-    target_path=target_path,
-    ai=ai,
-    learning_mode=True,
-    validate=True
-)
+- **Triggered** when:
+  - `learning_mode=True` and the document is valid but generic (no specialized extractor).
+  - Used to **generate a specialized extractor** for future documents with similar layouts.  
+- **Process**:
+  - Uses `StrategyLearner.analyze_and_report()` to synthesize metadata rules.
+  - Logs the AI-generated strategy and stores it in the document metadata.
 
-# Validate and use the extracted document
-ValidationResult = validate(document)
-if ValidationResult.is_valid:
-    print("Document processed successfully!")
-else:
-    print("Validation failed:", ValidationResult.errors)
+```python
+report = learner.analyze_and_report(...)
+document.metadata["learning_report"] = report
 ```
 
 ---
 
-### **8. Summary**
-This code is part of a **robust, AI-integrated document processing system** that:
-- **Prioritizes deterministic parsing** for efficiency.
-- **Fallbacks to AI OCR** when deterministic methods fail.
-- **Learns from data** in `learning_mode` to synthesize specialized extractors.
-- **Validates all outputs** and logs detailed audit trails.
+### **3. Validation and Error Handling**
 
-It is designed for **financial or structured document processing**, where accuracy and auditability are critical.
+- **Validation**:
+  - Calls `validate_document(document)` to ensure the extracted data meets schema rules.
+  - If validation fails, raises a `ValidationError` with detailed error messages.  
+
+- **Error Cases**:
+  - If no extractor matches the document layout (even with AI fallback), raises `UnsupportedDocumentError`.
+  - If `learning_mode=True` but no AI instance is provided, raises a `ValueError`.
+
+```python
+if not val_result.is_valid:
+    error_msgs = "; ".join(e.message for e in val_result.errors)
+    raise ValidationError(f"Deterministic validation failed: {error_msgs}")
+```
+
+---
+
+### **4. Logging and Auditing**
+
+- **Audit Trail**:
+  - Uses `get_ai_connectivity_info()` to log AI usage (e.g., provider, success/failure).  
+  - Stores audit metadata in the document: `document.metadata["ai_audit"]`.
+
+- **Logging**:
+  - Detailed logs for each decision point (e.g., "Option A succeeded", "AI fallback triggered").
+  - Uses `divider` (60-character lines) to separate log sections for clarity.
+
+```python
+divider = "=" * 60
+logger.info(f"{divider}\n[Canonica][AI Fallback Succeeded]...\n{divider}")
+```
+
+---
+
+### **5. Key Design Considerations**
+
+- **Fallback Chain**:
+  - The pipeline prioritizes deterministic extraction but gracefully falls back to AI OCR and learning strategies when needed.
+
+- **Modularity**:
+  - Separation of concerns: `_try_extract_canonical_document()` handles extraction, `StrategyLearner` handles AI learning.
+
+- **Learning Mode**:
+  - Enables **adaptive extraction** by allowing the system to evolve extractors based on new document layouts.
+
+---
+
+### **6. Potential Improvements**
+
+- **Error Recovery**:
+  - Add retries for AI OCR fallback in case of transient failures.
+- **Performance**:
+  - Cache AI-generated strategies to avoid retraining for similar document layouts.
+- **Extensibility**:
+  - Allow custom extractors to be registered dynamically (e.g., via a plugin system).
+- **User Feedback**:
+  - Provide a way for users to manually override AI-generated strategies.
+
+---
+
+### **Summary**
+
+This pipeline is designed for **robust document processing** in environments where documents may vary in structure (e.g., financial statements, invoices, or reports). It balances **speed and accuracy** by combining deterministic rules with **AI-driven adaptability**, making it suitable for scenarios like **banking, legal, or compliance workflows**.
