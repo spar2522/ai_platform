@@ -4,14 +4,28 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from aip_canonica.models.document_type import DocumentType
 
 
 @dataclass(slots=True)
 class LearnedStrategy:
-    """A learned, reusable extraction strategy for a document family."""
+    """A learned, reusable extraction strategy for a document family.
+
+    Attributes:
+        name: Strategy name for identification
+        document_type: Type of document this strategy applies to
+        anchor_keywords: Keywords to locate document sections
+        table_header_keywords: Keywords identifying table headers
+        column_mapping: Map of source to target column names
+        metadata_fields: Metadata fields to extract
+        layout_type: Type of layout to handle (flat_tabular, multiline_block, key_value_form)
+        evolution_mode: Strategy evolution approach (create_new, evolve_existing)
+        related_extractor_name: Name of related extractor for evolution
+        block_delimiters: Delimiters for block boundaries in multiline layouts
+        notes: Additional information about the strategy
+    """
 
     name: str
     document_type: DocumentType
@@ -19,13 +33,18 @@ class LearnedStrategy:
     table_header_keywords: list[str] = field(default_factory=list)
     column_mapping: dict[str, str] = field(default_factory=dict)
     metadata_fields: dict[str, str] = field(default_factory=dict)
-    layout_type: Literal["flat_tabular", "multiline_block", "key_value_form"] = "flat_tabular"
-    evolution_mode: Literal["create_new", "evolve_existing"] = "create_new"
+    layout_type: str = "flat_tabular"  # "flat_tabular" | "multiline_block" | "key_value_form"
+    evolution_mode: str = "create_new"  # "create_new" | "evolve_existing"
     related_extractor_name: str | None = None
     block_delimiters: dict[str, str] = field(default_factory=dict)
     notes: str = ""
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert strategy to dictionary representation.
+
+        Returns:
+            Dictionary containing all strategy parameters
+        """
         return {
             "name": self.name,
             "document_type": self.document_type.value,
@@ -47,6 +66,19 @@ class LearningReport:
 
     Compares standard extractor metadata with layout-specific metadata discovered by AI
     to determine if creating a specialized extractor is warranted.
+
+    Attributes:
+        document_name: Name of the document analyzed
+        detected_document_type: Document type identified by AI
+        baseline_fields_extracted: Fields extracted by standard extractor
+        ai_discovered_fields: Fields identified by AI analysis
+        additional_metadata_fields: Additional metadata fields discovered
+        recommended_action: Recommended action (use_generic, create_specialized_extractor)
+        strategy: Learned strategy if created
+        generated_code_snippet: Code snippet for new extractor
+        extractor_file_path: Path to generated extractor file
+        report_file_path: Path to this report file
+        notes: Additional analysis observations
     """
 
     document_name: str
@@ -75,11 +107,7 @@ class LearningReport:
             lines.append(f"Layout Observations    : {self.notes}")
         if self.extractor_file_path:
             lines.append(f"Generated Extractor    : {self.extractor_file_path.as_uri()}")
-        else:
-            lines.append("Generated Extractor    : None")
         if self.report_file_path:
             lines.append(f"Detailed Report        : {self.report_file_path.as_uri()}")
-        else:
-            lines.append("Detailed Report        : None")
         lines.append("=" * 60)
         return "\n".join(lines)
