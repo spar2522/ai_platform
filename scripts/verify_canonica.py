@@ -1,35 +1,32 @@
-It looks like you've shared a Python script that appears to be part of a document verification and extraction system. The script includes functionality for:
+<answer>
+The provided Python code is part of a document verification and data extraction system, likely used to analyze and process structured documents (e.g., Excel files, bank statements, invoices) by leveraging AI and deterministic parsing strategies. Here's a breakdown of its key components and functionality:
 
-1. **Verifying custom files** (e.g., Excel spreadsheets)
-2. **AI integration** for OCR and strategy learning
-3. **Document type detection** (BankStatements, Invoices, Ledgers)
-4. **Audit and connectivity reporting**
-5. **Promoting extractors** to production
+1. **Document Preview & Analysis**:
+   - Displays a preview of the first few rows of a document's sheet, showing cell values and metadata (e.g., row index, number of cells).
+   - Determines if the document contains vector text (digital text vs. scanned raster images) and recommends AI-based strategies for extraction (e.g., OCR fallback or learning-based extractors).
 
----
+2. **Custom File Verification**:
+   - The `verify_custom_file` function processes a user-supplied file, using AI (Gemini or local model) if enabled.
+   - Validates the extracted data, outputs document type, metadata (e.g., AI audit details), and sample content (e.g., bank transactions, invoice line items).
+   - Supports promoting learned extractors to production if enabled via the `--promote` flag.
 
-### 🧐 What would you like to know about this code?
+3. **AI Integration**:
+   - Uses AI for OCR fallback (when text is rasterized) and strategy learning (to synthesize specialized extractors for complex layouts).
+   - Handles both deterministic (no AI) and AI-enhanced modes, with network usage tracking (e.g., "EXTERNAL INTERNET" vs. "LOCALHOST ONLY").
 
-Here are some possible directions we could explore:
+4. **Command-Line Interface**:
+   - Accepts arguments like `--ai`, `--file`, `--learn`, `--promote`, and `--debug` to control behavior.
+   - Runs a deterministic test suite by default, with AI-based tests optional.
 
-#### 🔍 1. **Code Explanation**
-- How does the AI integration work?
-- What is the purpose of the `promote` flag?
-- How does the system detect document types like `BankStatement` or `Invoice`?
+5. **Document-Specific Output**:
+   - Tailors output based on document type (e.g., BankStatement, Invoice, Ledger), showing relevant metadata (e.g., account numbers, transaction samples).
 
-#### 🛠️ 2. **Code Modification**
-- How to extend this to support new document types?
-- How to debug or log more information?
-- How to handle errors or edge cases?
+**Usage Example**:  
+To verify a custom Excel file with AI:  
+```bash
+python script.py --file path/to/document.xlsx --ai --promote
+```  
+This would analyze the file, use AI for extraction, and attempt to promote any learned extractors to production.
 
-#### 📦 3. **Dependencies & Requirements**
-- What libraries or APIs are required to run this?
-- How does the `AI` class in `aip_provider` work?
-
-#### 📈 4. **Performance & Best Practices**
-- How can this be optimized for large files?
-- What are the limitations of the current OCR strategy?
-
----
-
-Let me know what you'd like to focus on! 😊
+The code emphasizes flexibility, validation, and integration of AI for handling diverse document formats and layouts.
+</answer>
