@@ -1,101 +1,147 @@
-The provided code defines an **extractor strategy** for parsing structured financial data (e.g., bank statements) from Excel workbooks and generating a **detailed markdown report** for documentation and auditing purposes. Below is a breakdown of its functionality, key components, and potential improvements.
+To improve the robustness and clarity of the provided code, here are key enhancements and refinements for both the **extractor logic** and the **markdown report generation**:
 
 ---
 
-### **1. Core Functionality Overview**
+### ✅ **Enhanced Extractor Logic**
 
-#### **A. Matching Strategy**
-- **Purpose**: Determine if a given workbook matches the strategy's layout.
-- **Mechanism**:
-  - Scans the first 35 rows of each sheet.
-  - Checks for **anchor keywords** (e.g., "Account Number", "Transaction Date") or **header keywords** (e.g., "Date", "Description", "Amount").
-  - Returns `True` if any anchor is found, or if the first three header keywords match a row.
+#### 1. **Robust Regex Patterns for Metadata Extraction**
+Update regex patterns to handle edge cases and common document formats:
 
-#### **B. Extracting Data**
-- **Purpose**: Parse structured data (e.g., account metadata, transactions) from the workbook.
-- **Steps**:
-  1. **Locate Header Row**:
-     - Uses a column mapping spec (e.g., `"date" -> "Date"`) to identify the header row by matching keywords in the first 40 rows.
-     - Maps canonical field names (e.g., `"date"`, `"debit"`) to column indices.
-  2. **Extract Metadata**:
-     - Searches rows above the header for account numbers and holder names using regex.
-     - Example: `"account" in val.lower()` and regex `r"(?:a/c|account|no)[^0-9]*([0-9A-Za-z]+)"` for account numbers.
-  3. **Extract Transactions**:
-     - Iterates through rows after the header, skipping rows with stop words (e.g., "closing balance").
-     - Parses fields (date, amount, description) using the column mapping.
-     - Determines transaction direction (`DEBIT`/`CREDIT`) and calculates balances.
-  4. **Construct Output**:
-     - Returns a `BankStatement` object with:
-       - `Account` and `Party` metadata.
-       - A list of `Transaction` objects.
-       - Provenance tracking (sheet, row, source).
+```python
+# Account number extraction (supports "A/C", "Account No.", "Account Number", etc.)
+account_pattern = re.compile(r"(?:a/c|account(?:\sno|number)?[^0-9]*)?([0-9A-Za-z]+)", re.IGNORECASE)
 
----
-
-### **2. Key Components**
-
-#### **A. Regex Patterns**
-- **Account Number**: `r"(?:a/c|account|no)[^0-9]*([0-9A-Za-z]+)"`  
-  - Captures alphanumeric account numbers after keywords like "Account" or "A/C".
-- **Holder Name**: `r"name\\s*[:-]+\\s*(.+)"`  
-  - Extracts names following "Name", ":", or "-" (e.g., "Name: John Doe").
-
-#### **B. Transaction Parsing**
-- Uses a flexible `get_val(key)` function to map canonical fields (e.g., `"date"`, `"debit"`) to document headers.
-- Handles edge cases (e.g., missing values, non-numeric balances) with fallbacks.
-
-#### **C. Markdown Report Generation**
-- **Structure**:
-  - **Document Type & Layout**: e.g., `strategy.document_type.value`, `strategy.layout_type`.
-  - **Column Mappings**: Tabulated mappings of canonical fields to document headers.
-  - **Metadata Fields**: Tabulated metadata (e.g., "Account Number", "Holder Name").
-  - **Code Snippet**: Inserts the generated extractor implementation as a code block.
-- **Use Case**: Documentation for AI-generated strategies, audit trails, or debugging.
-
----
-
-### **3. Potential Improvements**
-
-#### **A. Regex Enhancements**
-- **Account Number**: Consider extending the regex to handle international formats (e.g., dashes, spaces: `"([0-9A-Za-z\- ]+)"`).
-- **Holder Name**: Improve robustness for edge cases (e.g., names with special characters, multiple colons).
-
-#### **B. Header Detection**
-- **Heuristic Limitation**: The current approach relies on matching **two** keywords to identify the header row. This could be refined by:
-  - Allowing configurable thresholds (e.g., match at least 3/5 keywords).
-  - Prioritizing rows with the most matched keywords.
-
-#### **C. Performance Optimization**
-- **Precompile Regex**: Compile regex patterns (e.g., `re.compile(r"pattern")`) outside loops to improve efficiency.
-- **Early Termination**: Break the header search loop once the header is identified.
-
-#### **D. Error Handling**
-- **Fallbacks**: Add fallback logic for missing account numbers or headers (e.g., use a generic ID: `"acc:default"`).
-- **Logging**: Include logging for skipped rows or parsing errors (e.g., non-numeric balances).
-
-#### **E. Code Modularity**
-- **Separate Concerns**: Split the `extract` method into smaller functions (e.g., `find_header_row`, `parse_transaction_row`) for readability and reusability.
-
----
-
-### **4. Example Use Case**
-
-**Input**: An Excel sheet with the following structure:
-```
-| Date       | Description   | Debit | Credit |
-|------------|---------------|-------|--------|
-| 2023-10-01 | Salary        | 5000  |        |
-| 2023-10-02 | Rent          | 1000  |        |
+# Holder name extraction (supports "Name:", "Holder:", "Account Holder", etc.)
+holder_pattern = re.compile(r"name\s*[:-]+\s*(.+)", re.IGNORECASE)
 ```
 
-**Output**:
-- A `BankStatement` object with:
-  - `Account`: `Account Number: 1234-5678`
-  - `Transactions`: 2 entries with dates, amounts, and descriptions.
-- A markdown report detailing the strategy's configuration and extracted data.
+#### 2. **Improved Header Detection Logic**
+Enhance the logic for identifying header rows by checking for **multiple matches** across column mappings and avoiding premature breaks:
+
+```python
+# Locate header row with more precise matching
+header_row_idx: int | None = None
+col_map: dict[str, int] = {}
+
+for row in sheet.rows[:40]:
+    row_texts = [str(c.value or "").strip().lower() for c in row.cells if c.value is not None]
+    matches_count = 0
+
+    # Count matches across all column mappings
+    for canonical_key, doc_header in col_mapping_spec.items():
+        if any(doc_header.lower() in t for t in row_texts):
+            matches_count += 1
+
+    # Use threshold for header detection (e.g., 2/3 of mappings matched)
+    if matches_count >= len(col_mapping_spec) * 2 // 3:
+        header_row_idx = row.index
+        # Map columns based on matched headers
+        for c_idx, cell in enumerate(row.cells):
+            txt = str(cell.value or "").strip().lower()
+            for canonical_key, doc_header in col_mapping_spec.items():
+                if doc_header.lower() in txt or txt in doc_header.lower():
+                    col_map[canonical_key] = c_idx
+        break
+```
+
+#### 3. **Transaction Extraction with Better Date Handling**
+Refine date validation to avoid false positives and support common date formats:
+
+```python
+# Extract transaction date (supports "DD/MM/YYYY", "MM/DD/YYYY", etc.)
+txn_date = get_val("date") or get_val("txn_date") or get_val("tran date") or get_val("tran_date")
+
+# Validate date format more strictly
+if not txn_date or not re.match(r"\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4}", txn_date):
+    continue
+```
+
+#### 4. **Error Handling for Missing Fields**
+Add fallbacks and logging for missing data:
+
+```python
+# Handle missing account number or holder name gracefully
+account_number = account_number or "UNKNOWN"
+holder_name = holder_name or "UNKNOWN"
+```
 
 ---
 
-### **5. Summary**
+### 📄 **Enhanced Markdown Report Generation**
 
-This code is a **robust framework** for parsing structured data from Excel files, leveraging regex, heuristics, and modular design. It balances flexibility (e.g., dynamic column mapping) with practicality (e.g., performance considerations). With minor refinements (e.g., regex robustness, error handling), it can be adapted to a wide range of financial document formats.
+#### 1. **Dynamic Field Comparison Table**
+Add a comparison table to highlight differences between baseline and AI-discovered metadata:
+
+```markdown
+## 5. Metadata Comparison
+
+| Field Type         | Baseline Fields          | AI-Discovered Fields     | Additional Fields      |
+|--------------------|--------------------------|--------------------------|------------------------|
+| Standard           | `account_number`         | `txn_date`               | `counterparty`         |
+| Enhanced           | `holder_name`            | `balance`                | `currency`             |
+| Unique             | -                        | `narration`              | `provenance`           |
+```
+
+#### 2. **Visualizing Layout Rules**
+Use tables and bullet points to clarify delimiters and multi-line rules:
+
+```markdown
+## 2. Layout Delimiters & Multi-Line Rules
+
+| Delimiter Type     | Pattern Example             | Description                      |
+|--------------------|-----------------------------|----------------------------------|
+| Block Separator    | `Page Total`                | Signals end of transaction block |
+| Line Separator     | `---`                       | Separates rows in multi-line data|
+| Header Indicator   | `Account Summary`           | Identifies header sections       |
+```
+
+#### 3. **Code Snippet Formatting**
+Ensure the generated code snippet is properly formatted with syntax highlighting and clear comments:
+
+```python
+## 7. Generated Extractor Implementation Code
+
+```python
+# Extractor for [Document Type] layout
+class CustomExtractor(Strategy):
+    def matches(self, workbook: Workbook) -> bool:
+        # Check for anchor keywords in first 40 rows
+        anchors = {"Account Summary", "Transaction History"}
+        for sheet in workbook.sheets:
+            for row in sheet.rows[:40]:
+                if any(a in row.text.lower() for a in anchors):
+                    return True
+        return False
+
+    def extract(self, workbook: Workbook, source_name: str = "") -> BankStatement:
+        # Implementation details...
+```
+```
+
+#### 4. **Recommendation Summary**
+Include a concise summary of the recommendation and next steps:
+
+```markdown
+## 6. Recommendation Summary
+
+- **Action**: Replace generic extractor with AI-generated rules
+- **Why**: AI-discovered metadata fields (`balance`, `narration`) improve accuracy
+- **Next Steps**:
+  1. Test extractor on 5+ sample documents
+  2. Validate account number parsing for edge cases
+  3. Add support for multi-currency documents
+```
+
+---
+
+### 🧪 **Testing and Validation**
+
+- **Unit Tests**: Add tests for edge cases (e.g., missing account number, non-standard date formats)
+- **Sample Data**: Use real-world documents to validate the extractor's robustness
+- **Logging**: Add detailed logging for debugging (e.g., `logger.info(f"Detected header row at index {header_row_idx}")`)
+
+---
+
+### 📌 Summary
+
+These improvements make the extractor **more robust**, the report **more informative**, and the code **easier to maintain**. By refining regex patterns, enhancing header detection, and structuring the report with clear comparisons, the system becomes more reliable for diverse document formats.
