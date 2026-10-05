@@ -23,10 +23,13 @@ BenchmarkExtractor = ref_mod.AxisBankStatementExtractor
 
 
 def compare():
-    bench = BenchmarkExtractor()
-    synth = SynthesizedExtractor()
-    val = BankStatementValidator()
+    """Compare benchmark and synthesized extractors on real-world documents."""
+    # Initialize components
+    benchmark_extractor = BenchmarkExtractor()
+    synthesized_extractor = SynthesizedExtractor()
+    validator = BankStatementValidator()
 
+    # File paths (hardcoded for demonstration - consider external configuration for production)
     pdf_path = Path("/Users/arpitratan/Downloads/Axis Statement.pdf")
     xls_path = Path("/Users/arpitratan/Desktop/IT returns 2025-2026/Axis SB Statement.xls")
 
@@ -34,57 +37,43 @@ def compare():
     print(" GROUND TRUTH VALIDATION: BENCHMARK vs AUTONOMOUS AI-SYNTHESIZED EXTRACTOR")
     print("=" * 80)
 
-    # 1. Compare on PDF
-    if pdf_path.exists():
-        pdf_wb = PdfParser().parse(pdf_path)
-        doc_bench_pdf = bench.extract(pdf_wb)
-        doc_synth_pdf = synth.extract(pdf_wb)
-        val_bench_pdf = val.validate(doc_bench_pdf)
-        val_synth_pdf = val.validate(doc_synth_pdf)
-
-        print("\n--- 1. AXIS STATEMENT (PDF - MULTILINE LAYOUT) ---")
-        print(f"{'Metric':<30} | {'Benchmark (Handcrafted)':<22} | {'Synthesized (AI-Learned)':<22} | {'Match?'}")
-        print("-" * 85)
-        metrics = [
-            ("Matches() Detection", bench.matches(pdf_wb), synth.matches(pdf_wb)),
-            ("Account Number", doc_bench_pdf.account_number, doc_synth_pdf.account_number),
-            ("Holder Name", doc_bench_pdf.holder.name if doc_bench_pdf.holder else "N/A", doc_synth_pdf.holder.name if doc_synth_pdf.holder else "N/A"),
-            ("Opening Balance", str(doc_bench_pdf.opening_balance), str(doc_synth_pdf.opening_balance)),
-            ("Closing Balance", str(doc_bench_pdf.closing_balance), str(doc_synth_pdf.closing_balance)),
-            ("Transactions Extracted", len(doc_bench_pdf.transactions), len(doc_synth_pdf.transactions)),
-            ("Validation Passed", val_bench_pdf.is_valid, val_synth_pdf.is_valid),
-            ("Discrepancy", val_bench_pdf.metrics.get("discrepancy"), val_synth_pdf.metrics.get("discrepancy")),
-        ]
-        for name, b_val, s_val in metrics:
-            match_str = "✔ IDENTICAL" if str(b_val) == str(s_val) else f"DIFF ({b_val} vs {s_val})"
-            print(f"{name:<30} | {str(b_val):<22} | {str(s_val):<22} | {match_str}")
-
-    # 2. Compare on XLS
-    if xls_path.exists():
-        xls_wb = ExcelParser().parse(xls_path)
-        doc_bench_xls = bench.extract(xls_wb)
-        doc_synth_xls = synth.extract(xls_wb)
-        val_bench_xls = val.validate(doc_bench_xls)
-        val_synth_xls = val.validate(doc_synth_xls)
-
-        print("\n--- 2. AXIS STATEMENT (XLS - TABULAR LAYOUT) ---")
-        print(f"{'Metric':<30} | {'Benchmark (Handcrafted)':<22} | {'Synthesized (AI-Learned)':<22} | {'Match?'}")
-        print("-" * 85)
-        metrics_xls = [
-            ("Matches() Detection", bench.matches(xls_wb), synth.matches(xls_wb)),
-            ("Account Number", doc_bench_xls.account_number, doc_synth_xls.account_number),
-            ("Holder Name", doc_bench_xls.holder.name if doc_bench_xls.holder else "N/A", doc_synth_xls.holder.name if doc_synth_xls.holder else "N/A"),
-            ("Opening Balance", str(doc_bench_xls.opening_balance), str(doc_synth_xls.opening_balance)),
-            ("Closing Balance", str(doc_bench_xls.closing_balance), str(doc_synth_xls.closing_balance)),
-            ("Transactions Extracted", len(doc_bench_xls.transactions), len(doc_synth_xls.transactions)),
-            ("Validation Passed", val_bench_xls.is_valid, val_synth_xls.is_valid),
-            ("Discrepancy", val_bench_xls.metrics.get("discrepancy"), val_synth_xls.metrics.get("discrepancy")),
-        ]
-        for name, b_val, s_val in metrics_xls:
-            match_str = "✔ IDENTICAL" if str(b_val) == str(s_val) else f"DIFF ({b_val} vs {s_val})"
-            print(f"{name:<30} | {str(b_val):<22} | {str(s_val):<22} | {match_str}")
-
-    print("\n" + "=" * 80 + "\n")
+    # Process each document type
+    for file_path, file_type in [(pdf_path, "PDF - MULTILINE LAYOUT"), (xls_path, "XLS - TABULAR LAYOUT")]:
+        try:
+            # Parse document
+            parser = PdfParser() if file_path.suffix.lower() == ".pdf" else ExcelParser()
+            parsed_doc = parser.parse(file_path)
+            
+            # Extract data
+            benchmark_doc = benchmark_extractor.extract(parsed_doc)
+            synthesized_doc = synthesized_extractor.extract(parsed_doc)
+            
+            # Validate results
+            benchmark_valid = validator.validate(benchmark_doc)
+            synthesized_valid = validator.validate(synthesized_doc)
+            
+            # Display results
+            print(f"\n--- {file_type} ---")
+            print(f"{'Metric':<30} | {'Benchmark (Handcrafted)':<22} | {'Synthesized (AI-Learned)':<22} | {'Match?'}")
+            print("-" * 85)
+            
+            metrics = [
+                ("Matches() Detection", benchmark_extractor.matches(parsed_doc), synthesized_extractor.matches(parsed_doc)),
+                ("Account Number", benchmark_doc.account_number, synthesized_doc.account_number),
+                ("Holder Name", benchmark_doc.holder.name if benchmark_doc.holder else "N/A", synthesized_doc.holder.name if synthesized_doc.holder else "N/A"),
+                ("Opening Balance", str(benchmark_doc.opening_balance), str(synthesized_doc.opening_balance)),
+                ("Closing Balance", str(benchmark_doc.closing_balance), str(synthesized_doc.closing_balance)),
+                ("Transactions Extracted", len(benchmark_doc.transactions), len(synthesized_doc.transactions)),
+                ("Validation Passed", benchmark_valid.is_valid, synthesized_valid.is_valid),
+                ("Discrepancy", benchmark_valid.metrics.get("discrepancy"), synthesized_valid.metrics.get("discrepancy")),
+            ]
+            
+            for name, b_val, s_val in metrics:
+                match_str = "✔ IDENTICAL" if str(b_val) == str(s_val) else f"DIFF ({b_val} vs {s_val})"
+                print(f"{name:<30} | {str(b_val):<22} | {str(s_val):<22} | {match_str}")
+            
+        except Exception as e:
+            print(f"\nError processing {file_type}: {str(e)}")
 
 
 if __name__ == "__main__":
