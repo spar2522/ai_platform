@@ -69,40 +69,41 @@ def get_default_registry() -> ExtractorRegistry:
 
 
 def test_find_extractor_class_name():
-    """Verify that the class name is correctly extracted from source code."""
+    """Verify that find_extractor_class_name correctly identifies the class name from code."""
     name = find_extractor_class_name(SAMPLE_EXTRACTOR_CODE)
     assert name == "MockTestExtractor"
 
 
 def test_register_extractor_in_registry(tmp_path: Path):
-    """Verify that extractors are correctly registered in the registry file."""
+    """Test registration of an extractor in a registry file, including idempotency."""
     registry_file = tmp_path / "registry.py"
     registry_file.write_text(SAMPLE_REGISTRY_CODE, encoding="utf-8")
 
+    # First registration should succeed and modify the file
     updated = register_extractor_in_registry(
         registry_file=registry_file,
         category="bank",
         module_slug="mock_test",
         class_name="MockTestExtractor",
     )
-    assert updated is True, "Extractor should be successfully registered"
+    assert updated is True
 
     content = registry_file.read_text(encoding="utf-8")
     assert "from aip_canonica.extractors.bank.mock_test import MockTestExtractor" in content
-    assert "MockTestExtractor()," in content, "Extractor should be added to registry list"
+    assert "MockTestExtractor()," in content
 
-    # Verify idempotency - second call should not modify registry
+    # Second registration should be idempotent and not modify the file
     second_updated = register_extractor_in_registry(
         registry_file=registry_file,
         category="bank",
         module_slug="mock_test",
         class_name="MockTestExtractor",
     )
-    assert second_updated is False, "Second registration should be idempotent"
+    assert second_updated is False
 
 
 def test_promote_extractor_end_to_end(tmp_path: Path):
-    """Verify end-to-end promotion of an extractor to the correct location."""
+    """Test end-to-end promotion of an extractor, including registry update."""
     source_file = tmp_path / "mock_test_strategy_extractor.py"
     source_file.write_text(SAMPLE_EXTRACTOR_CODE, encoding="utf-8")
 
@@ -111,7 +112,6 @@ def test_promote_extractor_end_to_end(tmp_path: Path):
     registry_file = extractors_root / "registry.py"
     registry_file.write_text(SAMPLE_REGISTRY_CODE, encoding="utf-8")
 
-    # Promote extractor to standard location with auto-registration
     promoted_file = promote_extractor(
         source_path=source_file,
         category="bank",
@@ -120,29 +120,30 @@ def test_promote_extractor_end_to_end(tmp_path: Path):
         format_code=False,
     )
 
-    assert promoted_file.exists(), "Promoted file should be created"
-    assert promoted_file.name == "mock_test.py", "Promoted file should have correct name"
+    assert promoted_file.exists()
+    assert promoted_file.name == "mock_test.py"
     registry_content = registry_file.read_text(encoding="utf-8")
-    assert "MockTestExtractor" in registry_content, "Registry should include promoted extractor"
+    assert "MockTestExtractor" in registry_content
 
 
 def test_promotion_lock_concurrency(tmp_path: Path):
-    """Verify that promotion lock correctly serializes concurrent operations."""
-    lock_path = tmp_path / ".promotion.lock"
+    """Verify that the promotion lock properly serializes concurrent operations."""
+    lock_file = tmp_path / ".promotion.lock"
     counter = 0
 
     def worker():
         nonlocal counter
-        with promotion_lock(lock_path):
+        with promotion_lock(lock_file):
             val = counter
-            # Simulate work that requires exclusive access
+            # Simulated work
             counter = val + 1
 
-    # Create and start multiple threads to test concurrency
+    # Create and start threads
     threads = [threading.Thread(target=worker) for _ in range(10)]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
 
-    assert counter == 10, "All threads should complete successfully with synchronized access"
+    # Ensure all threads completed successfully
+    assert counter == 10
