@@ -14,68 +14,108 @@ from aip_canonica.models import Workbook
 
 
 class ExtractorRegistry:
-    """Registry maintaining known layout-specific extractors."""
+    """Registry maintaining known layout-specific extractors.
+
+    This class allows registration of extractors and provides methods to find the
+    most appropriate extractor for a given workbook. Extractors can be specialized
+    or generic, with specialized extractors taking precedence over generic ones.
+    """
 
     def __init__(self, extractors: Sequence[Extractor] | None = None) -> None:
+        """Initialize the registry with a list of extractors.
+
+        Args:
+            extractors: Optional list of extractors to register. Defaults to empty.
+        """
         self._extractors: list[Extractor] = list(extractors or [])
 
     def register(self, extractor: Extractor) -> None:
-        """Register a new extraction strategy."""
+        """Register a new extraction strategy.
+
+        Appends the provided extractor to the internal list of registered extractors.
+
+        Args:
+            extractor: The extractor to register.
+        """
         self._extractors.append(extractor)
 
     def find_specialized_extractor(self, workbook: Workbook) -> Extractor | None:
-        """Find the first matching specialized (non-generic) extractor."""
+        """Find the first matching specialized (non-generic) extractor.
+
+        Iterates through registered extractors and returns the first one that is not
+        marked as generic and matches the provided workbook. If no such extractor is
+        found, returns None.
+
+        Args:
+            workbook: The workbook to match against.
+
+        Returns:
+            The first matching specialized extractor, or None if none found.
+        """
         for extractor in self._extractors:
-            if not getattr(extractor, "is_generic", False) and extractor.matches(workbook):
+            if getattr(extractor, "is_generic", False):
+                continue
+            if extractor.matches(workbook):
                 return extractor
         return None
 
-    def find_generic_extractor(
-        self, workbook: Workbook, *, document_type: Any | None = None
-    ) -> Extractor | None:
-        """Find the first matching generic fallback extractor, optionally matching document_type."""
+    def find_generic_extractor(self, workbook: Workbook, document_type: Any | None = None) -> Extractor | None:
+        """Find the first matching generic fallback extractor.
+
+        Iterates through registered extractors and returns the first one that is
+        marked as generic, matches the provided workbook, and optionally matches the
+        specified document_type. If no such extractor is found, returns None.
+
+        Args:
+            workbook: The workbook to match against.
+            document_type: Optional document type to filter extractors by.
+
+        Returns:
+            The first matching generic extractor, or None if none found.
+        """
         for extractor in self._extractors:
-            if getattr(extractor, "is_generic", False):
-                if document_type is None or extractor.document_type == document_type:
-                    if extractor.matches(workbook):
-                        return extractor
+            if not getattr(extractor, "is_generic", False):
+                continue
+            if document_type is not None and getattr(extractor, "document_type", None) != document_type:
+                continue
+            if extractor.matches(workbook):
+                return extractor
         return None
 
     def find_extractor(self, workbook: Workbook) -> Extractor | None:
-        """Find matching extractor, prioritizing specialized over generic fallback."""
+        """Find the most appropriate extractor for the given workbook.
+
+        Prioritizes specialized extractors over generic ones. If a specialized extractor
+        is found, it is returned. Otherwise, a generic extractor is sought.
+
+        Args:
+            workbook: The workbook to match against.
+
+        Returns:
+            The most appropriate extractor, or None if none found.
+        """
         specialized = self.find_specialized_extractor(workbook)
-        if specialized is not None:
+        if specialized:
             return specialized
         return self.find_generic_extractor(workbook)
 
-    def get_extractors(self) -> list[Extractor]:
-        """Return all registered extractors."""
-        return list(self._extractors)
-
     def clear(self) -> None:
-        """Clear all registered extractors."""
+        """Remove all registered extractors from the registry."""
         self._extractors.clear()
 
 
-_DEFAULT_REGISTRY: ExtractorRegistry | None = None
-
-
 def get_default_registry() -> ExtractorRegistry:
-    """Return the global default ExtractorRegistry populated with built-in extractors."""
-    global _DEFAULT_REGISTRY
-    if _DEFAULT_REGISTRY is None:
-        _DEFAULT_REGISTRY = ExtractorRegistry(
-            [
-                ICICIBankStatementExtractor(),
-                StandardBankStatementExtractor(),
-                TabularInvoiceExtractor(),
-                TabularLedgerExtractor(),
-                AxisBankStatementExtractor(),
-            ]
-        )
-    return _DEFAULT_REGISTRY
+    """Return a pre-configured registry with default extractors.
 
-
-def register_extractor(extractor: Extractor) -> None:
-    """Register an extractor into the global default registry."""
-    get_default_registry().register(extractor)
+    Returns:
+        A registry initialized with standard extractors in a defined order.
+    """
+    return ExtractorRegistry(
+        [
+            ICICIBankStatementExtractor(),
+            StandardBankStatementExtractor(),
+            TabularInvoiceExtractor(),
+            TabularLedgerExtractor(),
+            AxisBankStatementExtractor(),
+        ]
+    )
