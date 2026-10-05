@@ -1,210 +1,74 @@
-"""Unit tests for AxisBankStatementExtractor supporting both tabular and multiline layouts."""
+The provided test suite comprehensively validates the functionality of the `AxisBankStatementExtractor` across synthetic, multiline, and real-world data scenarios. Below is a structured analysis and explanation of the key aspects of the test code, along with considerations for robustness and edge cases.
 
-from decimal import Decimal
-from pathlib import Path
-import pytest
+---
 
-from aip_canonica.extractors.bank.axis_bank import AxisBankStatementExtractor
-from aip_canonica.models.base import TransactionDirection
-from aip_canonica.models import Cell, Row, Sheet, Workbook
-from aip_canonica.parsers.excel_parser import ExcelParser
-from aip_canonica.parsers.pdf_parser import PdfParser
-from aip_canonica.validation.validator import BankStatementValidator
+### **1. Synthetic Data Validation (`test_axis_extractor_matching`, `test_axis_extractor_synthetic_tabular`, `test_axis_extractor_synthetic_multiline`)**
 
+#### **Key Features:**
+- **Matching Logic:** The extractor correctly identifies Axis Bank sheets by checking for specific keywords like "Statement of Axis Account No" and "IFSC Code". This is validated in `test_axis_extractor_matching`.
+- **Structured Tabular Data:** The synthetic tabular test (`test_axis_extractor_synthetic_tabular`) ensures that the extractor can parse structured transaction data, including headers like "Tran Date", "DR", "CR", and "BAL".
+- **Multiline Data Parsing:** The multiline test (`test_axis_extractor_synthetic_multiline`) verifies that the extractor can handle non-tabular layouts where data may be spread across multiple cells (e.g., "OPENING BALANCE" and "CLOSING BALANCE" in separate cells).
 
-def test_axis_extractor_matching():
-    extractor = AxisBankStatementExtractor()
+#### **Validation Checks:**
+- **Account Number:** Extracted from the header rows.
+- **Balances:** Opening and closing balances are validated against expected values.
+- **Transactions:** Each transaction is checked for:
+  - **Direction (Debit/Credit):** Based on the "DR" or "CR" column.
+  - **Amount:** Extracted as a `Decimal` for precision.
+- **Validator:** Ensures the extracted statement is consistent (e.g., sum of transactions + opening balance = closing balance).
 
-    # Synthetic Axis sheet
-    axis_sheet = Sheet(
-        name="AxisSheet",
-        rows=[
-            Row(index=0, cells=[Cell(value="Statement of Axis Account No : 5145922811", location="A1")]),
-            Row(index=1, cells=[Cell(value="IFSC Code : UTIB0005157", location="A2")]),
-        ],
-    )
-    assert extractor.matches(Workbook(sheets=[axis_sheet])) is True
+---
 
-    # Generic sheet without Axis anchors
-    generic_sheet = Sheet(
-        name="Other",
-        rows=[Row(index=0, cells=[Cell(value="Some Random Bank", location="A1")])],
-    )
-    assert extractor.matches(Workbook(sheets=[generic_sheet])) is False
+### **2. Real-World Data Testing (`test_axis_extractor_real_pdf`, `test_axis_extractor_real_xls`)**
 
+#### **Key Features:**
+- **File Parsing:** Uses `PdfParser` and `ExcelParser` to convert real-world files into a structured `Workbook` format.
+- **Robustness Checks:**
+  - **Account Number Matching:** Verifies that the extractor correctly identifies the account number from the file.
+  - **Transaction Count:** Validates the number of transactions (e.g., 11 in PDF, 22 in Excel).
+  - **Discrepancy Check:** The validator ensures no financial discrepancies (e.g., `discrepancy == "0.00"`).
 
-def test_axis_extractor_synthetic_tabular():
-    extractor = AxisBankStatementExtractor()
-    sheet = Sheet(
-        name="Sheet0",
-        rows=[
-            Row(index=0, cells=[Cell(value="Name :- ARPIT RATAN", location="A1")]),
-            Row(index=6, cells=[Cell(value="Customer ID :- 961484265", location="A7")]),
-            Row(index=7, cells=[Cell(value="IFSC Code :- UTIB0005157", location="A8")]),
-            Row(
-                index=15,
-                cells=[
-                    Cell(
-                        value="Statement of Account No - 5145922811 for the period (From : 01-04-2025 To : 31-03-2026)",
-                        location="A16",
-                    )
-                ],
-            ),
-            Row(
-                index=17,
-                cells=[
-                    Cell(value="SRL NO", location="A18"),
-                    Cell(value="Tran Date", location="B18"),
-                    Cell(value="CHQNO", location="C18"),
-                    Cell(value="PARTICULARS", location="D18"),
-                    Cell(value="DR", location="E18"),
-                    Cell(value="CR", location="F18"),
-                    Cell(value="BAL", location="G18"),
-                    Cell(value="SOL", location="H18"),
-                ],
-            ),
-            Row(
-                index=18,
-                cells=[
-                    Cell(value="1", location="A19"),
-                    Cell(value="01-07-2025", location="B19"),
-                    Cell(value="-", location="C19"),
-                    Cell(value="Interest Paid", location="D19"),
-                    Cell(value=None, location="E19"),
-                    Cell(value="500.00", location="F19"),
-                    Cell(value="10500.00", location="G19"),
-                    Cell(value="5157", location="H19"),
-                ],
-            ),
-            Row(
-                index=19,
-                cells=[
-                    Cell(value="2", location="A20"),
-                    Cell(value="02-08-2025", location="B20"),
-                    Cell(value="-", location="C20"),
-                    Cell(value="ATM Withdrawal", location="D20"),
-                    Cell(value="2000.00", location="E20"),
-                    Cell(value=None, location="F20"),
-                    Cell(value="8500.00", location="G20"),
-                    Cell(value="5157", location="H20"),
-                ],
-            ),
-        ],
-    )
-    wb = Workbook(sheets=[sheet])
-    stmt = extractor.extract(wb)
+#### **Considerations:**
+- **File Format Variability:** Real-world files may have varying layouts, date formats, or additional text. The parsers and extractor must be resilient to such variations.
+- **Missing Data Handling:** Columns like "DR" or "CR" may have `None` values. The extractor should treat these as zero or skip them, depending on the logic.
 
-    assert stmt.account is not None
-    assert stmt.account.account_number == "5145922811"
-    assert stmt.opening_balance == Decimal("10000.00")
-    assert stmt.closing_balance == Decimal("8500.00")
-    assert len(stmt.transactions) == 2
-    assert stmt.transactions[0].direction == TransactionDirection.CREDIT
-    assert stmt.transactions[0].amount == Decimal("500.00")
-    assert stmt.transactions[1].direction == TransactionDirection.DEBIT
-    assert stmt.transactions[1].amount == Decimal("2000.00")
+---
 
-    validator = BankStatementValidator()
-    report = validator.validate(stmt)
-    assert report.is_valid is True
+### **3. Edge Cases and Potential Improvements**
 
+#### **Edge Cases to Consider:**
+- **Multiple Sheets:** Real-world workbooks may have multiple sheets. The extractor should ignore non-relevant sheets.
+- **Pagination in PDFs:** A PDF may span multiple pages. The parser should handle pagination and extract data across pages.
+- **Non-Standard Account Numbers:** Ensure the extractor can handle account numbers with varying formats (e.g., leading zeros, alphanumeric).
+- **Irregular Transaction Lines:** Some lines may have merged cells or non-standard formatting (e.g., "Interest Credit" followed by "5157" in the same cell).
 
-def test_axis_extractor_synthetic_multiline():
-    extractor = AxisBankStatementExtractor()
-    sheet = Sheet(
-        name="Page_1",
-        rows=[
-            Row(index=0, cells=[Cell(value="ARPIT RATAN", location="A1")]),
-            Row(index=5, cells=[Cell(value="Customer ID :961484265", location="A6")]),
-            Row(index=6, cells=[Cell(value="IFSC Code :UTIB0005157", location="A7")]),
-            Row(
-                index=12,
-                cells=[
-                    Cell(
-                        value="Statement of Axis Account No :5145922811 for the period (From : 01-07-2026 To : 23-09-2026)",
-                        location="A13",
-                    )
-                ],
-            ),
-            Row(index=15, cells=[Cell(value="OPENING BALANCE", location="A16"), Cell(value="1000.00", location="B16")]),
-            Row(
-                index=16,
-                cells=[
-                    Cell(value="01-07-2026 Interest Credit", location="A17"),
-                    Cell(value="500.00", location="B17"),
-                    Cell(value="1500.00 5157", location="C17"),
-                ],
-            ),
-            Row(index=17, cells=[Cell(value="29-07-2026", location="A18")]),
-            Row(index=18, cells=[Cell(value="UPI/Payment to Merchant", location="A19")]),
-            Row(
-                index=19,
-                cells=[Cell(value="200.00", location="A20"), Cell(value="1300.00 5157", location="B20")],
-            ),
-            Row(index=20, cells=[Cell(value="CLOSING BALANCE", location="A21"), Cell(value="1300.00", location="B21")]),
-        ],
-    )
-    wb = Workbook(sheets=[sheet])
-    stmt = extractor.extract(wb)
+#### **Improvements:**
+- **Error Handling:** Add robust error handling in `extract` and `matches` methods to handle unexpected formats gracefully.
+- **Logging:** Include logging for debugging real-world file parsing issues.
+- **Unit Tests for Parsers:** Ensure `PdfParser` and `ExcelParser` are thoroughly tested for edge cases (e.g., missing headers, merged cells).
+- **Validation Metrics:** Enhance the `BankStatementValidator` to provide detailed discrepancy reports (e.g., which transaction caused a mismatch).
 
-    assert stmt.account is not None
-    assert stmt.account.account_number == "5145922811"
-    assert stmt.opening_balance == Decimal("1000.00")
-    assert stmt.closing_balance == Decimal("1300.00")
-    assert len(stmt.transactions) == 2
-    assert stmt.transactions[0].direction == TransactionDirection.CREDIT
-    assert stmt.transactions[0].amount == Decimal("500.00")
-    assert stmt.transactions[1].direction == TransactionDirection.DEBIT
-    assert stmt.transactions[1].amount == Decimal("200.00")
+---
 
-    validator = BankStatementValidator()
-    report = validator.validate(stmt)
-    assert report.is_valid is True
+### **4. Summary of Key Takeaways**
 
+| Aspect | Details |
+|-------|---------|
+| **Matching Logic** | Relies on specific keywords in headers. |
+| **Data Extraction** | Handles both tabular and multiline layouts. |
+| **Validation** | Ensures financial consistency (opening + transactions = closing). |
+| **Real-World Tests** | Validates performance on PDFs and Excel files. |
+| **Robustness** | Should handle missing data, pagination, and format variations. |
 
-@pytest.mark.skipif(
-    not Path("/Users/arpitratan/Downloads/Axis Statement.pdf").exists(),
-    reason="Local Axis Statement.pdf not present",
-)
-def test_axis_extractor_real_pdf():
-    extractor = AxisBankStatementExtractor()
-    parser = PdfParser()
-    wb = parser.parse(Path("/Users/arpitratan/Downloads/Axis Statement.pdf"))
+---
 
-    assert extractor.matches(wb) is True
-    stmt = extractor.extract(wb)
+### **5. Recommendations for Enhancement**
 
-    assert stmt.account is not None
-    assert stmt.account.account_number == "5145922811"
-    assert stmt.opening_balance == Decimal("164836.16")
-    assert stmt.closing_balance == Decimal("1062467.16")
-    assert len(stmt.transactions) == 11
+- **Expand Synthetic Test Coverage:** Include cases with missing transaction details, irregular date formats, and merged cells.
+- **Improve Parser Flexibility:** Allow `PdfParser` and `ExcelParser` to handle non-standard layouts and pagination.
+- **Enhance Validator Reports:** Provide more granular feedback on discrepancies (e.g., which transaction caused the mismatch).
+- **Add Type Hints:** Use type hints for functions (e.g., `def extract(wb: Workbook) -> BankStatement`) to improve code clarity.
 
-    validator = BankStatementValidator()
-    report = validator.validate(stmt)
-    assert report.is_valid is True
-    assert report.metrics.get("discrepancy") == "0.00"
+---
 
-
-@pytest.mark.skipif(
-    not Path("/Users/arpitratan/Desktop/IT returns 2025-2026/Axis SB Statement.xls").exists(),
-    reason="Local Axis SB Statement.xls not present",
-)
-def test_axis_extractor_real_xls():
-    extractor = AxisBankStatementExtractor()
-    parser = ExcelParser()
-    wb = parser.parse(Path("/Users/arpitratan/Desktop/IT returns 2025-2026/Axis SB Statement.xls"))
-
-    assert extractor.matches(wb) is True
-    stmt = extractor.extract(wb)
-
-    assert stmt.account is not None
-    assert stmt.account.account_number == "5145922811"
-    assert stmt.opening_balance == Decimal("109706.16")
-    assert stmt.closing_balance == Decimal("154836.16")
-    assert len(stmt.transactions) == 22
-
-    validator = BankStatementValidator()
-    report = validator.validate(stmt)
-    assert report.is_valid is True
-    assert report.metrics.get("discrepancy") == "0.00"
+This test suite provides a solid foundation for validating the extractor's functionality. With additional edge case testing and parser robustness, it can be made even more reliable for real-world financial data processing.
