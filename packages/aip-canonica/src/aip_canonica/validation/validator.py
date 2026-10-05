@@ -20,256 +20,247 @@ TOLERANCE = Decimal("0.05")
 
 
 class BankStatementValidator:
-    """Validates financial reconciliation on a BankStatement:
+    """Validates the mathematical and structural integrity of a bank statement.
 
-    opening_balance + total_credits - total_debits ≈ closing_balance
+    Ensures that all transactions are valid, balances reconcile, and required fields are present.
     """
 
-    def validate(self, statement: BankStatement) -> ValidationResult:
-        issues: list[ValidationIssue] = []
+    def validate(self, document: BankStatement) -> ValidationResult:
+        """Perform validation on a bank statement document."""
+        issues = []
+        metrics = {}
 
-        if not statement.transactions:
+        # Check for required data
+        if not document.transactions:
             issues.append(
                 ValidationIssue(
                     severity="error",
-                    code="EMPTY_STATEMENT",
-                    message="Bank statement contains no transactions",
+                    code="EMPTY_TRANSACTIONS",
+                    message="Bank statement must contain at least one transaction",
                     field="transactions",
                 )
             )
 
-        total_credits = Decimal("0")
+        # Process transactions
         total_debits = Decimal("0")
+        total_credits = Decimal("0")
 
-        for idx, txn in enumerate(statement.transactions):
-            if txn.amount < Decimal("0"):
+        for transaction in document.transactions:
+            if transaction.amount < 0:
                 issues.append(
                     ValidationIssue(
                         severity="error",
-                        code="NEGATIVE_TRANSACTION_AMOUNT",
-                        message=f"Transaction {txn.id} has negative amount {txn.amount}",
-                        field="amount",
-                        details={"transaction_id": txn.id, "amount": str(txn.amount)},
+                        code="NEGATIVE_TRANSACTION",
+                        message="Transaction amount cannot be negative",
+                        field="transactions",
+                        details={"transaction_id": transaction.id, "amount": transaction.amount},
                     )
                 )
 
-            if txn.direction == TransactionDirection.CREDIT:
-                total_credits += txn.amount
-            elif txn.direction == TransactionDirection.DEBIT:
-                total_debits += txn.amount
+            if transaction.direction == TransactionDirection.DEBIT:
+                total_debits += transaction.amount
+            else:
+                total_credits += transaction.amount
 
-        metrics: dict[str, str] = {
-            "transaction_count": str(len(statement.transactions)),
-            "total_credits": str(total_credits),
-            "total_debits": str(total_debits),
-        }
+        # Build metrics
+        metrics["transaction_count"] = str(len(document.transactions))
+        metrics["total_debits"] = str(total_debits)
+        metrics["total_credits"] = str(total_credits)
 
-        if statement.opening_balance is not None and statement.closing_balance is not None:
-            expected_closing = statement.opening_balance + total_credits - total_debits
-            diff = abs(expected_closing - statement.closing_balance)
+        # Validate balances
+        if document.opening_balance is not None and document.closing_balance is not None:
+            expected_closing = document.opening_balance + total_debits - total_credits
+            difference = abs(expected_closing - document.closing_balance)
 
-            metrics["opening_balance"] = str(statement.opening_balance)
-            metrics["stated_closing_balance"] = str(statement.closing_balance)
-            metrics["calculated_closing_balance"] = str(expected_closing)
-            metrics["discrepancy"] = str(diff)
-
-            if diff > TOLERANCE:
+            if difference > TOLERANCE:
                 issues.append(
                     ValidationIssue(
                         severity="error",
-                        code="BALANCE_RECONCILIATION_FAILED",
-                        message=(
-                            f"Closing balance mismatch: opening ({statement.opening_balance}) + "
-                            f"credits ({total_credits}) - debits ({total_debits}) = "
-                            f"{expected_closing}, but statement states {statement.closing_balance}"
-                        ),
+                        code="BALANCE_MISMATCH",
+                        message="Calculated closing balance does not match reported value",
                         field="closing_balance",
                         details={
-                            "opening": str(statement.opening_balance),
-                            "credits": str(total_credits),
-                            "debits": str(total_debits),
-                            "expected_closing": str(expected_closing),
-                            "stated_closing": str(statement.closing_balance),
-                            "discrepancy": str(diff),
+                            "opening_balance": document.opening_balance,
+                            "total_debits": total_debits,
+                            "total_credits": total_credits,
+                            "expected_closing": expected_closing,
+                            "actual_closing": document.closing_balance,
+                            "difference": difference,
                         },
                     )
                 )
-        else:
-            if statement.opening_balance is None:
-                issues.append(
-                    ValidationIssue(
-                        severity="warning",
-                        code="MISSING_OPENING_BALANCE",
-                        message="Statement opening balance is not available for full reconciliation",
-                        field="opening_balance",
-                    )
-                )
-            if statement.closing_balance is None:
-                issues.append(
-                    ValidationIssue(
-                        severity="warning",
-                        code="MISSING_CLOSING_BALANCE",
-                        message="Statement closing balance is not available for full reconciliation",
-                        field="closing_balance",
-                    )
-                )
 
-        is_valid = len([i for i in issues if i.severity == "error"]) == 0
-        return ValidationResult(is_valid=is_valid, issues=issues, metrics=metrics)
+        # Return validation result
+        return ValidationResult(
+            is_valid=len(issues) == 0,
+            issues=issues,
+            metrics=metrics,
+        )
 
 
 class InvoiceValidator:
-    """Validates mathematical consistency on an Invoice:
+    """Validates the mathematical and structural integrity of an invoice.
 
-    lines + taxes - discounts ≈ total_amount
+    Ensures that all line items are valid, totals reconcile, and required fields are present.
     """
 
-    def validate(self, invoice: Invoice) -> ValidationResult:
-        issues: list[ValidationIssue] = []
+    def validate(self, document: Invoice) -> ValidationResult:
+        """Perform validation on an invoice document."""
+        issues = []
+        metrics = {}
 
-        if not invoice.lines:
+        # Check for required data
+        if not document.line_items:
             issues.append(
                 ValidationIssue(
                     severity="error",
-                    code="EMPTY_INVOICE",
-                    message="Invoice contains no line items",
-                    field="lines",
+                    code="EMPTY_LINE_ITEMS",
+                    message="Invoice must contain at least one line item",
+                    field="line_items",
                 )
             )
 
-        sum_lines = sum((line.amount for line in invoice.lines), Decimal("0"))
-        sum_taxes = sum((t.amount for t in invoice.taxes), Decimal("0"))
-        sum_discounts = sum((d.amount for d in invoice.discounts), Decimal("0"))
+        # Process line items
+        total_amount = Decimal("0")
 
-        metrics: dict[str, str] = {
-            "line_count": str(len(invoice.lines)),
-            "sum_lines": str(sum_lines),
-            "sum_taxes": str(sum_taxes),
-            "sum_discounts": str(sum_discounts),
-            "stated_total": str(invoice.total_amount),
-        }
-
-        # Check line item subtotal if stated
-        if invoice.subtotal is not None and invoice.lines:
-            subtotal_diff = abs(sum_lines - invoice.subtotal)
-            if subtotal_diff > TOLERANCE:
+        for item in document.line_items:
+            if item.amount < 0:
                 issues.append(
                     ValidationIssue(
                         severity="error",
-                        code="SUBTOTAL_MISMATCH",
-                        message=(
-                            f"Sum of lines ({sum_lines}) does not match stated subtotal ({invoice.subtotal})"
-                        ),
-                        field="subtotal",
-                        details={"sum_lines": str(sum_lines), "stated_subtotal": str(invoice.subtotal)},
+                        code="NEGATIVE_LINE_ITEM",
+                        message="Line item amount cannot be negative",
+                        field="line_items",
+                        details={"item_id": item.id, "amount": item.amount},
                     )
                 )
 
-        base_amount = invoice.subtotal if invoice.subtotal is not None else sum_lines
-        expected_total = base_amount + sum_taxes - sum_discounts
-        diff = abs(expected_total - invoice.total_amount)
+            total_amount += item.amount
 
-        metrics["calculated_total"] = str(expected_total)
-        metrics["discrepancy"] = str(diff)
+        # Build metrics
+        metrics["line_item_count"] = str(len(document.line_items))
+        metrics["total_amount"] = str(total_amount)
 
-        if diff > TOLERANCE:
-            issues.append(
-                ValidationIssue(
-                    severity="error",
-                    code="TOTAL_AMOUNT_MISMATCH",
-                    message=(
-                        f"Calculated total ({expected_total}) from subtotal ({base_amount}) + "
-                        f"taxes ({sum_taxes}) - discounts ({sum_discounts}) does not match "
-                        f"stated total ({invoice.total_amount})"
-                    ),
-                    field="total_amount",
-                    details={
-                        "expected_total": str(expected_total),
-                        "stated_total": str(invoice.total_amount),
-                        "discrepancy": str(diff),
-                    },
+        # Validate totals
+        if document.total_amount is not None:
+            difference = abs(total_amount - document.total_amount)
+
+            if difference > TOLERANCE:
+                issues.append(
+                    ValidationIssue(
+                        severity="error",
+                        code="TOTAL_MISMATCH",
+                        message="Calculated total amount does not match reported value",
+                        field="total_amount",
+                        details={
+                            "expected_total": total_amount,
+                            "actual_total": document.total_amount,
+                            "difference": difference,
+                        },
+                    )
                 )
-            )
 
-        is_valid = len([i for i in issues if i.severity == "error"]) == 0
-        return ValidationResult(is_valid=is_valid, issues=issues, metrics=metrics)
+        # Return validation result
+        return ValidationResult(
+            is_valid=len(issues) == 0,
+            issues=issues,
+            metrics=metrics,
+        )
 
 
 class LedgerValidator:
-    """Validates mathematical integrity of a Ledger:
+    """Validates the mathematical and structural integrity of a ledger.
 
-    opening_balance + total_movements ≈ closing_balance
+    Ensures that all entries are valid, balances reconcile, and required fields are present.
     """
 
-    def validate(self, ledger: Ledger) -> ValidationResult:
-        issues: list[ValidationIssue] = []
+    def validate(self, document: Ledger) -> ValidationResult:
+        """Perform validation on a ledger document."""
+        issues = []
+        metrics = {}
 
-        if not ledger.entries:
+        # Check for required data
+        if not document.entries:
             issues.append(
                 ValidationIssue(
                     severity="error",
-                    code="EMPTY_LEDGER",
-                    message="Ledger contains no entries",
+                    code="EMPTY_ENTRIES",
+                    message="Ledger must contain at least one entry",
                     field="entries",
                 )
             )
 
+        # Process entries
         total_debits = Decimal("0")
         total_credits = Decimal("0")
 
-        for entry in ledger.entries:
-            if entry.direction == EntryDirection.DEBIT:
-                total_debits += entry.amount
-            elif entry.direction == EntryDirection.CREDIT:
-                total_credits += entry.amount
-
-        metrics: dict[str, str] = {
-            "entry_count": str(len(ledger.entries)),
-            "total_debits": str(total_debits),
-            "total_credits": str(total_credits),
-        }
-
-        if ledger.opening_balance is not None and ledger.closing_balance is not None:
-            # Asset/Expense normal: opening + debit - credit
-            normal_asset_closing = ledger.opening_balance + total_debits - total_credits
-            # Liability/Equity/Income normal: opening + credit - debit
-            normal_liability_closing = ledger.opening_balance - total_debits + total_credits
-
-            diff1 = abs(normal_asset_closing - ledger.closing_balance)
-            diff2 = abs(normal_liability_closing - ledger.closing_balance)
-
-            min_diff = min(diff1, diff2)
-            metrics["opening_balance"] = str(ledger.opening_balance)
-            metrics["stated_closing_balance"] = str(ledger.closing_balance)
-            metrics["calculated_closing_balance"] = str(normal_asset_closing if diff1 <= diff2 else normal_liability_closing)
-            metrics["discrepancy"] = str(min_diff)
-
-            if min_diff > TOLERANCE:
+        for entry in document.entries:
+            if entry.amount < 0:
                 issues.append(
                     ValidationIssue(
                         severity="error",
-                        code="LEDGER_BALANCE_MISMATCH",
-                        message=(
-                            f"Ledger closing balance mismatch: opening ({ledger.opening_balance}) with "
-                            f"debits ({total_debits}) and credits ({total_credits}) does not match "
-                            f"closing ({ledger.closing_balance})"
-                        ),
-                        field="closing_balance",
-                        details={
-                            "opening": str(ledger.opening_balance),
-                            "debits": str(total_debits),
-                            "credits": str(total_credits),
-                            "stated_closing": str(ledger.closing_balance),
-                        },
+                        code="NEGATIVE_ENTRY",
+                        message="Entry amount cannot be negative",
+                        field="entries",
+                        details={"entry_id": entry.id, "amount": entry.amount},
                     )
                 )
 
-        is_valid = len([i for i in issues if i.severity == "error"]) == 0
-        return ValidationResult(is_valid=is_valid, issues=issues, metrics=metrics)
+            if entry.direction == EntryDirection.DEBIT:
+                total_debits += entry.amount
+            else:
+                total_credits += entry.amount
+
+        # Build metrics
+        metrics["entry_count"] = str(len(document.entries))
+        metrics["total_debits"] = str(total_debits)
+        metrics["total_credits"] = str(total_credits)
+
+        # Validate balances
+        if document.opening_balance is not None and document.closing_balance is not None:
+            # Calculate expected closing balance based on account type
+            if document.account_type in ["asset", "expense"]:
+                expected_closing = document.opening_balance + total_debits - total_credits
+            elif document.account_type in ["liability", "equity", "income"]:
+                expected_closing = document.opening_balance - total_debits + total_credits
+            else:
+                expected_closing = None
+
+            if expected_closing is not None:
+                difference = abs(expected_closing - document.closing_balance)
+
+                if difference > TOLERANCE:
+                    issues.append(
+                        ValidationIssue(
+                            severity="error",
+                            code="BALANCE_MISMATCH",
+                            message="Calculated closing balance does not match reported value",
+                            field="closing_balance",
+                            details={
+                                "account_type": document.account_type,
+                                "opening_balance": document.opening_balance,
+                                "total_debits": total_debits,
+                                "total_credits": total_credits,
+                                "expected_closing": expected_closing,
+                                "actual_closing": document.closing_balance,
+                                "difference": difference,
+                            },
+                        )
+                    )
+
+        # Return validation result
+        return ValidationResult(
+            is_valid=len(issues) == 0,
+            issues=issues,
+            metrics=metrics,
+        )
 
 
 def validate(document: CanonicalDocument) -> ValidationResult:
-    """Deterministic validation dispatcher for any canonical document."""
+    """Deterministic validation dispatcher for any canonical document.
+
+    Routes validation to the appropriate document-specific validator based on type.
+    """
     doc_type = document.document_type
 
     if doc_type == DocumentType.BANK_STATEMENT:
@@ -284,8 +275,15 @@ def validate(document: CanonicalDocument) -> ValidationResult:
 
 
 class FinancialValidator:
-    """Convenience facade for deterministic financial validation."""
+    """Convenience facade for deterministic financial validation.
+
+    Provides a unified interface for validating any canonical document.
+    """
 
     @staticmethod
     def validate(document: CanonicalDocument) -> ValidationResult:
+        """Validate a canonical document using the appropriate validator.
+
+        This method serves as a simple facade to the document-specific validation logic.
+        """
         return validate(document)
