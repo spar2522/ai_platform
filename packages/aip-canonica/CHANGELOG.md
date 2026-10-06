@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-10-04
+
+### Added
+- **Multi-Layout Extractor Architecture**: Introduced `AxisBankStatementExtractor` supporting both 1-row tabular spreadsheets (XLS) and wrapped multiline block layouts (PDF) with automatic layout detection.
+- **Autonomous Promotion Engine**: Added `aip_canonica.promotion` with OS-level `fcntl.flock` and `threading.RLock` concurrency safety, automated class detection, registration in `registry.py`, and code formatting.
+- **LLM Multi-Layout Evolutionary Synthesis**: Enhanced `StrategyLearner` with evolutionary synthesis via Gemini 3.8 Flash, extending existing single-layout extractors into unified multi-layout classes.
+- **Decoupled Upstream Git Synchronization**: Added `aip_canonica.publishing` and `scripts/sync_extractors_to_upstream.py` background job to safely test, branch, and push promoted extractors to GitHub.
+- **PDF Vector Parsing & Multi-Page Support**: Added `PdfParser` with multi-page table text extraction and fallback recovery.
+- **Legacy XLS Support**: Added `xlrd` support in `ExcelParser` for parsing legacy `.xls` binary workbooks.
+- **Audit & Token Tracking**: Added token usage logging (`log_token_usage`) and AI connectivity notices.
+- **Verification & Benchmarking Tools**: Added `scripts/verify_canonica.py` (`--learn`, `--promote`, `--debug`), `scripts/promote_extractor.py`, and `scripts/compare_extractors.py`.
+
 ## [0.2.0] - 2026-09-26
 
 ### Added

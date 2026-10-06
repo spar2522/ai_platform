@@ -50,7 +50,8 @@ Physical Document (Excel, CSV)
 ### A. Source & Parser Layer (`aip_canonica.parsers`)
 Adapts physical file formats into an in-memory tabular structure (`Workbook`, `Sheet`, `Row`, `Cell`, `CellLocation`).
 - `DocumentParser`: Base abstraction for parsing file paths.
-- `ExcelParser`: Loads `.xlsx` / `.xls` via `openpyxl`.
+- `ExcelParser`: Loads `.xlsx` via `openpyxl` and legacy `.xls` via `xlrd`.
+- `PdfParser`: Extracts digital vector text into sheet rows via `pypdf`/`pdfplumber`, with transparent multimodal AI recovery for scanned raster PDFs.
 - `CsvParser`: Loads delimited files with dialect sniffing, handling varied line breaks, quotes, and empty rows.
 - `ParserFactory`: Dispatches by file extension.
 
@@ -71,6 +72,7 @@ Converts physical workbooks into canonical documents deterministically.
 - `Extractor` (Protocol): Declares `name`, `document_type`, `matches(workbook)`, and `extract(workbook)`.
 - `ExtractorRegistry`: Maintains known strategies and matches documents before extraction.
 - Built-in extractors:
+  - `AxisBankStatementExtractor`: Multi-layout unified extractor supporting both flat tabular spreadsheets (XLS) and wrapped multiline block layouts (PDF).
   - `ICICIBankStatementExtractor`: Handles complex multi-column statements with dynamic row offsets, metadata blocks, and summary footers.
   - `StandardBankStatementExtractor`: Handles standard tabular bank movements across CSV and Excel.
   - `TabularInvoiceExtractor`: Handles tabular invoices with lines, taxes, and totals.
@@ -85,8 +87,19 @@ Converts physical workbooks into canonical documents deterministically.
 
 ### E. AI Learning Layer (`aip_canonica.learning`)
 - Completely isolated from deterministic runtime execution.
-- `StrategyLearner`: Queries `aip_provider.AI` to inspect document samples and discover anchors and mappings for unknown layouts.
-- Output: `LearnedStrategy`, which can be converted into an extractor.
+- `StrategyLearner`: Queries `aip_provider.AI` (e.g. Gemini 3.8 Flash) to inspect document samples and discover anchors and mappings for unknown layouts.
+- Multi-Layout Evolution: When a new document layout variant arrives for an existing institution, the learner evolves the existing extractor into a single unified class supporting both variants.
+- Output: `LearnedStrategy` and synthesized Python code in `.canonica/generated/`.
+
+### F. Autonomous Promotion Engine (`aip_canonica.promotion`)
+- Concurrency-Safe Installation: Uses `threading.RLock()` and OS-level `fcntl.flock` on `extractors/.promotion.lock` to guarantee thread safety and process safety across web service workers.
+- AST Class Detection: Automatically identifies the primary `Extractor` class in the synthesized file.
+- Automated Wiring: Copies code into `aip_canonica/extractors/<category>/`, registers imports and instantiations in `registry.py`, and runs `ruff` format and linting.
+
+### G. Upstream Synchronization (`aip_canonica.publishing`)
+- Decoupled Batch Execution: Operates independently from the request processing path via `scripts/sync_extractors_to_upstream.py` (run once or as an hourly cron).
+- Verification Guard: Verifies unit tests pass before attempting git operations.
+- Feature Branch Sync: Automatically branches `canonica/auto-learned-extractors-<timestamp>`, commits, and pushes upstream with pull request links.
 
 ---
 
