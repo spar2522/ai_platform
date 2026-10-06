@@ -9,6 +9,7 @@ from aip_canonica.parsers.csv_parser import CsvParser
 
 
 def test_standard_bank_extractor_matching(standard_bank_statement_csv: Path, sample_invoice_csv: Path):
+    """Test that the extractor correctly identifies bank statements and rejects invoices."""
     extractor = StandardBankStatementExtractor()
     parser = CsvParser()
 
@@ -20,6 +21,7 @@ def test_standard_bank_extractor_matching(standard_bank_statement_csv: Path, sam
 
 
 def test_standard_bank_extractor_extraction(standard_bank_statement_csv: Path):
+    """Test extraction of standard bank statement with multiple transactions."""
     extractor = StandardBankStatementExtractor()
     wb = CsvParser().parse(standard_bank_statement_csv)
 
@@ -35,12 +37,12 @@ def test_standard_bank_extractor_extraction(standard_bank_statement_csv: Path):
     assert statement.closing_balance == Decimal("64400.00")
 
     assert len(statement.transactions) == 4
-    # First txn: 15000.00 Credit
+    # First transaction: 15000.00 Credit
     assert statement.transactions[0].amount == Decimal("15000.00")
     assert statement.transactions[0].direction == TransactionDirection.CREDIT
     assert statement.transactions[0].balance == Decimal("65000.00")
 
-    # Second txn: 3200.00 Debit
+    # Second transaction: 3200.00 Debit
     assert statement.transactions[1].amount == Decimal("3200.00")
     assert statement.transactions[1].direction == TransactionDirection.DEBIT
 
@@ -49,6 +51,7 @@ def test_standard_bank_extractor_extraction(standard_bank_statement_csv: Path):
 
 
 def test_standard_bank_extractor_horizontal_summary_and_reverse_order(tmp_path: Path):
+    """Test extraction of a bank statement with horizontal summary and reverse transaction order."""
     csv_content = """YES BANK Ltd.,,,Statement Of Accounts
 Primary Holder :SUSHIL KUMAR DROLIA, A/C Opening Date :22/09/2020
 Account No :008063700001026 (CURRENT)
@@ -62,14 +65,14 @@ STATEMENT SUMMARY :-
 Opening Balance,,Total Withdrawals,,Total Deposits,,Closing Balance
 40000.00,,5000.00,,10000.00,,45000.00
 """
-    f = tmp_path / "yes_bank_test.csv"
-    f.write_text(csv_content)
+    test_file = tmp_path / "yes_bank_test.csv"
+    test_file.write_text(csv_content)
 
     extractor = StandardBankStatementExtractor()
-    wb = CsvParser().parse(f)
+    wb = CsvParser().parse(test_file)
 
     assert extractor.matches(wb) is True
-    statement = extractor.extract(wb, source_name=str(f))
+    statement = extractor.extract(wb, source_name=str(test_file))
 
     assert statement.account is not None
     assert statement.account.account_number == "008063700001026"
@@ -89,4 +92,3 @@ Opening Balance,,Total Withdrawals,,Total Deposits,,Closing Balance
     val = statement.validate()
     assert val.is_valid
     assert val.metrics["discrepancy"] == "0.00"
-
