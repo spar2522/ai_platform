@@ -138,3 +138,32 @@ def test_validate_dispatcher():
     )
     res = validate(stmt)
     assert res.is_valid
+
+
+def test_bank_statement_validation_missing_date_fails():
+    stmt = BankStatement(
+        id="s1",
+        opening_balance=Decimal("100.00"),
+        closing_balance=Decimal("150.00"),
+        transactions=[
+            Transaction(id="t1", date="", amount=Decimal("50.00"), direction=TransactionDirection.CREDIT, narration="In"),
+        ],
+    )
+    res = BankStatementValidator().validate(stmt)
+    assert not res.is_valid
+    assert any(e.code == "MISSING_TRANSACTION_DATE" for e in res.errors)
+
+
+def test_bank_statement_validation_no_balance_info_fails():
+    stmt = BankStatement(
+        id="s1",
+        opening_balance=None,
+        closing_balance=None,
+        transactions=[
+            Transaction(id="t1", date="2026-01-01", amount=Decimal("50.00"), direction=TransactionDirection.CREDIT, narration="In", balance=None),
+        ],
+    )
+    res = BankStatementValidator().validate(stmt)
+    assert not res.is_valid
+    assert any(e.code == "NO_BALANCE_INFORMATION" for e in res.errors)
+

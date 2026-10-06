@@ -42,6 +42,17 @@ class BankStatementValidator:
         total_debits = Decimal("0")
 
         for idx, txn in enumerate(statement.transactions):
+            if not txn.date or not txn.date.strip():
+                issues.append(
+                    ValidationIssue(
+                        severity="error",
+                        code="MISSING_TRANSACTION_DATE",
+                        message=f"Transaction {txn.id} is missing a valid date",
+                        field="date",
+                        details={"transaction_id": txn.id},
+                    )
+                )
+
             if txn.amount < Decimal("0"):
                 issues.append(
                     ValidationIssue(
@@ -95,24 +106,35 @@ class BankStatementValidator:
                     )
                 )
         else:
-            if statement.opening_balance is None:
+            has_running_balances = any(t.balance is not None for t in statement.transactions)
+            if statement.opening_balance is None and statement.closing_balance is None and not has_running_balances:
                 issues.append(
                     ValidationIssue(
-                        severity="warning",
-                        code="MISSING_OPENING_BALANCE",
-                        message="Statement opening balance is not available for full reconciliation",
-                        field="opening_balance",
+                        severity="error",
+                        code="NO_BALANCE_INFORMATION",
+                        message="Bank statement has neither opening/closing balances nor transaction running balances",
+                        field="balance",
                     )
                 )
-            if statement.closing_balance is None:
-                issues.append(
-                    ValidationIssue(
-                        severity="warning",
-                        code="MISSING_CLOSING_BALANCE",
-                        message="Statement closing balance is not available for full reconciliation",
-                        field="closing_balance",
+            else:
+                if statement.opening_balance is None:
+                    issues.append(
+                        ValidationIssue(
+                            severity="warning",
+                            code="MISSING_OPENING_BALANCE",
+                            message="Statement opening balance is not available for full reconciliation",
+                            field="opening_balance",
+                        )
                     )
-                )
+                if statement.closing_balance is None:
+                    issues.append(
+                        ValidationIssue(
+                            severity="warning",
+                            code="MISSING_CLOSING_BALANCE",
+                            message="Statement closing balance is not available for full reconciliation",
+                            field="closing_balance",
+                        )
+                    )
 
         is_valid = len([i for i in issues if i.severity == "error"]) == 0
         return ValidationResult(is_valid=is_valid, issues=issues, metrics=metrics)

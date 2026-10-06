@@ -18,6 +18,70 @@ from aip_canonica.models.provenance import Provenance
 from aip_canonica.models import Workbook
 
 
+def _is_date_header(t: str) -> bool:
+    if ":" in t or len(t) > 30:
+        return False
+    return any(k in t for k in ["txn date", "trans date", "transaction date", "value date", "posting date"]) or bool(re.search(r"\bdate\b", t))
+
+
+def _is_desc_header(t: str) -> bool:
+    if ":" in t or len(t) > 35:
+        return False
+    return any(k in t for k in ["narration", "description", "particular", "particulars", "details", "remarks"])
+
+
+def _is_debit_header(t: str) -> bool:
+    if ":" in t or len(t) > 30:
+        return False
+    return any(k in t for k in ["debit", "withdrawal", "outflow"]) or bool(re.search(r"\bdr\.?\b", t))
+
+
+def _is_credit_header(t: str) -> bool:
+    if ":" in t or len(t) > 30:
+        return False
+    return any(k in t for k in ["credit", "deposit", "inflow"]) or bool(re.search(r"\bcr\.?\b", t))
+
+
+def _is_amount_header(t: str) -> bool:
+    if ":" in t or len(t) > 30:
+        return False
+    return bool(re.search(r"\bamount\b", t))
+
+
+def _find_summary_value(rows: list, r_idx: int, c_idx: int) -> Decimal | None:
+    row = rows[r_idx]
+    cell = row.cells[c_idx]
+    raw = str(cell.value or "").strip()
+
+    # 1. Embedded key-value in single cell (e.g. "Opening Balance: 55,915.73")
+    if ":" in raw:
+        parts = raw.split(":", 1)
+        val = parse_decimal(parts[1])
+        if val is not None:
+            return val
+
+    # 2. Check next non-empty cell in the same row
+    for next_c in row.cells[c_idx + 1: c_idx + 4]:
+        if next_c.value is not None and str(next_c.value).strip():
+            val = parse_decimal(next_c.value)
+            if val is not None:
+                return val
+            break
+
+    # 3. Check next row at c_idx (2-row horizontal summary table)
+    if r_idx + 1 < len(rows):
+        next_row = rows[r_idx + 1]
+        if c_idx < len(next_row.cells):
+            val = parse_decimal(next_row.cells[c_idx].value)
+            if val is not None:
+                return val
+        if c_idx + 1 < len(next_row.cells):
+            val = parse_decimal(next_row.cells[c_idx + 1].value)
+            if val is not None:
+                return val
+    return None
+
+
 class StandardBankStatementExtractor:
     """Extractor for standard tabular bank statements (CSV or Excel) with columns:
 
@@ -45,17 +109,15 @@ class StandardBankStatementExtractor:
                 if any(k in joined for k in ["general ledger", "ledger name", "ledger account", "tally"]):
                     return False
 
-            for row in sheet.rows[:25]:
+            for row in sheet.rows[:35]:
                 texts = [normalize_text(c.value) for c in row.cells if c.value is not None]
-                has_date = any("date" in t for t in texts)
-                has_desc = any(
-                    any(k in t for k in ["narration", "description", "particular", "details", "remark"])
-                    for t in texts
-                )
-                has_debit = any(any(k in t for k in ["debit", "withdrawal", "dr", "outflow"]) for t in texts)
-                has_credit = any(any(k in t for k in ["credit", "deposit", "cr", "inflow"]) for t in texts)
+                has_date = any(_is_date_header(t) for t in texts)
+                has_desc = any(_is_desc_header(t) for t in texts)
+                has_debit = any(_is_debit_header(t) for t in texts)
+                has_credit = any(_is_credit_header(t) for t in texts)
+                has_amt = any(_is_amount_header(t) for t in texts)
 
-                if has_date and has_desc and (has_debit or has_credit):
+                if has_date and has_desc and (has_debit or has_credit or has_amt):
                     return True
         return False
 
@@ -65,26 +127,28 @@ class StandardBankStatementExtractor:
         col_map: dict[str, int] = {}
 
         for sheet in workbook.sheets:
-            for row in sheet.rows[:30]:
+            for row in sheet.rows[:35]:
                 texts = [normalize_text(c.value) for c in row.cells]
-                has_date = any("date" in t for t in texts)
-                has_desc = any(any(k in t for k in ["narration", "description", "particular", "details"]) for t in texts)
-                has_debit_credit = any(any(k in t for k in ["debit", "withdrawal", "credit", "deposit", "dr", "cr"]) for t in texts)
+                has_date = any(_is_date_header(t) for t in texts)
+                has_desc = any(_is_desc_header(t) for t in texts)
+                has_debit = any(_is_debit_header(t) for t in texts)
+                has_credit = any(_is_credit_header(t) for t in texts)
+                has_amt = any(_is_amount_header(t) for t in texts)
 
-                if has_date and (has_desc or has_debit_credit):
+                if has_date and has_desc and (has_debit or has_credit or has_amt):
                     header_row_idx = row.index
                     target_sheet = sheet
                     for c_idx, cell in enumerate(row.cells):
                         txt = normalize_text(cell.value)
-                        if "date" in txt and "val" not in txt:
+                        if _is_date_header(txt) and "val" not in txt:
                             col_map["date"] = c_idx
-                        elif "val" in txt and "date" in txt:
+                        elif "val" in txt and _is_date_header(txt):
                             col_map["val_date"] = c_idx
-                        elif any(k in txt for k in ["narration", "description", "particular", "details", "remarks"]):
+                        elif _is_desc_header(txt):
                             col_map["narration"] = c_idx
-                        elif any(k in txt for k in ["debit", "withdrawal", "dr", "outflow"]):
+                        elif _is_debit_header(txt):
                             col_map["debit"] = c_idx
-                        elif any(k in txt for k in ["credit", "deposit", "cr", "inflow"]):
+                        elif _is_credit_header(txt):
                             col_map["credit"] = c_idx
                         elif any(k in txt for k in ["balance", "bal", "closing"]):
                             col_map["balance"] = c_idx
@@ -129,7 +193,7 @@ class StandardBankStatementExtractor:
                 # Period dates in cell
                 if not extracted_period:
                     per_m = re.search(
-                        r"from\s*[:\-]?\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4}).*?to\s*[:\-]?\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4})",
+                        r"(?:statement\s*)?from\s*[:\-]?\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4}).*?to\s*[:\-]?\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4})",
                         raw_cell,
                         re.IGNORECASE,
                     )
@@ -144,9 +208,15 @@ class StandardBankStatementExtractor:
 
                 # Holder name
                 if not holder_name:
-                    name_m = re.search(r"^(?:name|account\s*holder)\s*[:\-]+\s*([^\n,]+)", raw_cell, re.IGNORECASE)
+                    name_m = re.search(r"^(?:name|account\s*holder|primary\s*holder)\s*[:\-]+\s*([^\n,]+)", raw_cell, re.IGNORECASE)
                     if name_m:
                         holder_name = re.sub(r"^[:\-\s]+", "", name_m.group(1)).strip()
+
+                # Bank / Institution name in top rows
+                if not institution_name and row.index < 5:
+                    bank_m = re.search(r"^([A-Za-z\s]+Bank(?:\s+Ltd\.?)?)", raw_cell, re.IGNORECASE)
+                    if bank_m:
+                        institution_name = bank_m.group(1).strip()
 
                 next_val = str(row.cells[c_idx + 1].value or "").strip() if c_idx + 1 < len(row.cells) else ""
                 if ":" in raw_cell:
@@ -194,18 +264,53 @@ class StandardBankStatementExtractor:
             balance_str = get_cell_val("balance")
             ref_str = get_cell_val("ref")
 
-            # Check for footer / total rows
+            # Check for footer / summary indicator row
             first_val = normalize_text(row.cells[0].value)
-            if any(k in first_val for k in ["total", "closing bal", "summary", "opening bal"]):
-                for c_idx, cell in enumerate(row.cells):
-                    txt = normalize_text(cell.value)
-                    if "closing" in txt and "bal" in txt and c_idx + 1 < len(row.cells):
-                        closing_balance = parse_decimal(row.cells[c_idx + 1].value)
+            joined_row = " ".join(normalize_text(c.value) for c in row.cells)
+            if any(k in first_val for k in ["total", "closing bal", "summary", "opening bal"]) or \
+               any(k in joined_row for k in ["statement summary", "grand total"]):
                 break
+
+            # A valid transaction row must have a non-empty transaction date
+            if not date_str or normalize_text(date_str) in ["date", "txn date", "transaction date"]:
+                continue
+
+            # Check if row is an inline "Opening Balance" row within the transaction table
+            if "opening" in normalize_text(narration_str) and "bal" in normalize_text(narration_str):
+                for c in reversed(row.cells):
+                    v = parse_decimal(c.value)
+                    if v is not None:
+                        opening_balance = v
+                        break
+                continue
 
             debit_dec = parse_decimal(debit_str, default=Decimal("0")) or Decimal("0")
             credit_dec = parse_decimal(credit_str, default=Decimal("0")) or Decimal("0")
             balance_dec = parse_decimal(balance_str)
+
+            # Support ragged PDF/CSV rows where either debit or credit cell was omitted
+            if balance_dec is None and "balance" in col_map and col_map["balance"] >= len(row.cells) and len(row.cells) >= 3:
+                last_val = parse_decimal(row.cells[-1].value)
+                if last_val is not None:
+                    balance_dec = last_val
+                    amt_val = parse_decimal(row.cells[-2].value)
+                    if amt_val is not None and amt_val > Decimal("0"):
+                        prev_bal = transactions[-1].balance if transactions else opening_balance
+                        if prev_bal is not None:
+                            if balance_dec > prev_bal:
+                                credit_dec = amt_val
+                                debit_dec = Decimal("0")
+                            else:
+                                debit_dec = amt_val
+                                credit_dec = Decimal("0")
+                        else:
+                            nar_lower = normalize_text(narration_str)
+                            if any(k in nar_lower for k in ["credit", "deposit", "inflow", "cr"]):
+                                credit_dec = amt_val
+                                debit_dec = Decimal("0")
+                            else:
+                                debit_dec = amt_val
+                                credit_dec = Decimal("0")
 
             if debit_dec > Decimal("0"):
                 amount = debit_dec
@@ -246,6 +351,23 @@ class StandardBankStatementExtractor:
                 )
             )
 
+        # Scan footer rows for Opening / Closing balances
+        for r_idx, row in enumerate(target_sheet.rows):
+            if r_idx <= header_row_idx:
+                continue
+            for c_idx, cell in enumerate(row.cells):
+                txt = normalize_text(cell.value)
+                if not txt:
+                    continue
+                if opening_balance is None and "opening" in txt and ("bal" in txt or "balance" in txt) and "date" not in txt:
+                    val = _find_summary_value(target_sheet.rows, r_idx, c_idx)
+                    if val is not None:
+                        opening_balance = val
+                elif closing_balance is None and "closing" in txt and ("bal" in txt or "balance" in txt):
+                    val = _find_summary_value(target_sheet.rows, r_idx, c_idx)
+                    if val is not None:
+                        closing_balance = val
+
         account: Account | None = None
         if account_number:
             account = Account(
@@ -266,21 +388,33 @@ class StandardBankStatementExtractor:
             inst_slug = re.sub(r"[^a-zA-Z0-9]+", "_", institution_name.strip()).lower()
             institution = Party(id=f"party:{inst_slug}", name=institution_name)
 
-        if closing_balance is None and transactions and transactions[-1].balance is not None:
-            closing_balance = transactions[-1].balance
+        # Check if transactions are in reverse-chronological (descending) order
+        is_descending = False
+        if len(transactions) >= 2 and transactions[0].balance is not None and transactions[1].balance is not None:
+            delta = transactions[0].amount if transactions[0].direction == TransactionDirection.CREDIT else -transactions[0].amount
+            if transactions[1].balance + delta == transactions[0].balance:
+                is_descending = True
 
-        # If opening balance was not explicitly printed, derive it from first transaction and balance if available
+        if closing_balance is None and transactions:
+            latest_txn = transactions[0] if is_descending else transactions[-1]
+            if latest_txn.balance is not None:
+                closing_balance = latest_txn.balance
+
+        # If opening balance was not explicitly printed, derive it from earliest transaction and balance if available
         if opening_balance is None and transactions:
-            first_txn = transactions[0]
-            if first_txn.balance is not None:
-                if first_txn.direction == TransactionDirection.CREDIT:
-                    opening_balance = first_txn.balance - first_txn.amount
+            earliest_txn = transactions[-1] if is_descending else transactions[0]
+            if earliest_txn.balance is not None:
+                if earliest_txn.direction == TransactionDirection.CREDIT:
+                    opening_balance = earliest_txn.balance - earliest_txn.amount
                 else:
-                    opening_balance = first_txn.balance + first_txn.amount
+                    opening_balance = earliest_txn.balance + earliest_txn.amount
 
         period: DatePeriod | None = extracted_period
         if period is None and transactions:
-            period = DatePeriod(start_date=transactions[0].date, end_date=transactions[-1].date)
+            if is_descending:
+                period = DatePeriod(start_date=transactions[-1].date, end_date=transactions[0].date)
+            else:
+                period = DatePeriod(start_date=transactions[0].date, end_date=transactions[-1].date)
 
         return BankStatement(
             id=f"stmt:{account_number or 'standard'}:{period.start_date if period else 'statement'}",
