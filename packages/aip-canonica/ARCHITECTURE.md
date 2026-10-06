@@ -56,44 +56,34 @@ Adapts physical file formats into an in-memory tabular structure (`Workbook`, `S
 - `ParserFactory`: Dispatches by file extension.
 
 ### B. Canonical Model & Graph Layer (`aip_canonica.models`)
-- `CanonicalNode` (Protocol): Any entity participating in the financial graph (`id`, `node_type`, `provenance`, `to_dict()`).
-- `CanonicalDocument` (Protocol): Top-level document models providing `.as_graph()` and `.validate()`.
-- `CanonicalGraph`: An in-memory directed graph supporting outgoing discovery, incoming relationship discovery, and target resolution.
-- `Relationship`: Directed edge with `source_id`, `relation`, `target_id`, `target_type`, and `properties`.
-- Domain Models:
-  - `BankStatement`, `Ledger`, `Invoice`, `InterestCertificate`, `TDSCertificate`
-  - Entities like `Party`, `Tax`, `InvoiceLine`
+Defines canonical financial models and graph traversal capabilities.
+- `BankStatement`, `Invoice`, `Ledger`, `Tax`, `Party`, `InvoiceLine`: Core domain entities with rich metadata.
+- `Graph`: Central abstraction for traversing relationships between entities.
+- `.as_graph()`: Method on canonical documents to populate nodes and directed edges.
 
 ### C. Extractor Layer (`aip_canonica.extractors`)
-- **Purpose**: Convert raw documents into canonical models via layout-specific rules.
-- **Key Components**:
-  - `ExtractorRegistry`: Centralized registry for all layout extractors.
-  - `LayoutExtractor`: Base class for document-specific extractors.
-  - **Built-in Extractors**:
-    - `AxisBankStatementExtractor`: Handles multi-layout bank statements.
-    - `StandardInvoiceExtractor`: Processes standard invoice formats.
-    - `TaxCertificateExtractor`: Parses tax-related documents.
+Responsible for identifying and extracting meaningful data from raw documents.
+- `Extractor`: Base class for all document parsers.
+- `AxisBankStatementExtractor`: Handles multi-layout bank statements from Axis Bank.
+- `Registry`: Central registry for all extractors, enabling dynamic plugin loading.
 
 ### D. AI Learning Layer (`aip_canonica.ai`)
-- **Purpose**: Automate extractor evolution through AI-assisted analysis.
-- **Key Features**:
-  - `AIAnalyzer`: Queries AI models (e.g., Gemini 3.8 Flash) to identify document patterns.
-  - **Multi-Layout Evolution**: Automatically merges new layouts into existing extractors.
-  - Output: `LearnedStrategy` and synthetic Python code in `.canonica/generated/`
+Leverages AI to adapt to new document layouts and formats.
+- `GeminiAdapter`: Interface to Gemini 3.8 Flash for layout analysis.
+- `MultiLayoutEvolver`: Evolves existing extractors to support new document variants.
+- `LearnedStrategy`: Encapsulates AI-derived parsing rules and mappings.
 
-### E. Autonomous Promotion Engine (`aip_canonica.promotion`)
-- **Concurrency Safety**: Uses `threading.RLock()` and `fcntl.flock()` for safe deployment.
-- **Code Integration**:
-  - AST-based class identification in generated code.
-  - Automated code placement in `aip_canonica/extractors/<category>/`.
-  - Linting with `ruff` before deployment.
+### E. Promotion Engine (`aip_canonica.promotion`)
+Automates the deployment of new extractors into production.
+- `Locker`: Ensures thread-safe and process-safe installation using `threading.RLock` and `fcntl.flock`.
+- `CodeAnalyzer`: Identifies primary `Extractor` classes in synthesized code.
+- `WiringEngine`: Deploys new extractors into appropriate directories and updates `registry.py`.
 
 ### F. Upstream Synchronization (`aip_canonica.publishing`)
-- **Batch Processing**: Independent execution via `scripts/sync_extractors_to_upstream.py`.
-- **Quality Assurance**:
-  - Unit test verification before git operations.
-  - Git branch creation: `canonica/auto-learned-extractors-<timestamp>`
-  - Pull request automation with upstream repository.
+Maintains synchronization with upstream repositories.
+- `BatchRunner`: Executes synchronization tasks independently of request processing.
+- `VerificationService`: Ensures unit tests pass before initiating git operations.
+- `BranchManager`: Creates feature branches for new extractors with timestamped names.
 
 ---
 
@@ -126,8 +116,3 @@ Every entity holds a `Provenance` object referencing:
 - `row`, `column`, `address`: Exact coordinate (e.g. `B145`).
 - `cells`: Complete tuple of `CellLocation` records.
 - Interoperable with `aip_utils.Provenance`.
-
-This tracking enables:
-- **Auditability**: Traceable document origins.
-- **Validation**: Cross-checking data against source coordinates.
-- **Reconciliation**: Resolving discrepancies through source-level analysis.
