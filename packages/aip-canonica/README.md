@@ -169,29 +169,67 @@ Runtime execution is 100% deterministic:
 Canonica uses AI exclusively for **offline learning** to discover new document layouts, never for routine runtime execution:
 
 ```text
-Unknown Document Family
+Unknown Document Family (or New Layout Variant)
          │
          ▼
-  StrategyLearner (uses aip-provider AI)
+  StrategyLearner (uses aip-provider AI / Gemini 3.8 Flash)
+         │
+         ├─► New institution: Synthesizes initial layout extractor
+         └─► Existing institution: Evolve extractor into unified multi-layout class
          │
          ▼
-  LearnedStrategy (structural anchors, column mappings)
+  Candidate Extractor (.canonica/generated/)
          │
          ▼
-  Register Extractor
+  Autonomous Promotion Engine (thread-safe & process-safe flock)
          │
          ▼
-  Future Documents Execute Deterministically (0 AI calls)
+  Promoted to aip_canonica/extractors/<category>/ & registered in registry.py
+         │
+         ▼
+  Future Documents Execute Deterministically (0 AI calls, <10ms)
+         │
+         ▼
+  Hourly Upstream Sync Job (verifies tests, creates feature branch, pushes to GitHub)
 ```
 
-Learning uses `aip-provider` directly:
+### CLI Verification & Autonomous Learning
+
+Verify an existing document or autonomously learn and promote a new layout:
+
+```bash
+# 1. Deterministic verification (100% offline, 0 AI calls)
+uv run python scripts/verify_canonica.py --file statement.pdf
+
+# 2. Autonomous Learning with AI (Gemini or Local Ollama)
+uv run python scripts/verify_canonica.py --file statement.pdf --learn --provider gemini
+
+# 3. Autonomous End-to-End Learning & Package Promotion
+# Analyzes layout, generates code, promotes to extractors package, and registers in ExtractorRegistry:
+uv run python scripts/verify_canonica.py --file statement.pdf --learn --provider gemini --promote
+
+# 4. Decoupled Upstream Git Sync
+# Scans for promoted extractors, runs test suite, and safely pushes to GitHub:
+uv run python scripts/sync_extractors_to_upstream.py --dry-run
+uv run python scripts/sync_extractors_to_upstream.py --remote origin
+```
+
+### Programmatic Promotion & Upstream Sync
 
 ```python
-from aip_canonica.learning import StrategyLearner
-from aip_provider import AI
+from pathlib import Path
+from aip_canonica.promotion import promote_extractor
+from aip_canonica.publishing import sync_to_upstream
 
-learner = StrategyLearner(ai=AI.local())
-strategy = await learner.learn_from_workbook(workbook, name="coop_bank")
+# Thread-safe and process-safe promotion:
+target_file = promote_extractor(
+    source_path=".canonica/generated/axis_bank_statement_extractor.py",
+    category="bank",
+    auto_register=True,
+)
+
+# Sync pending extractors upstream:
+result = sync_to_upstream(repo_root=Path("."), remote="origin")
 ```
 
 ---
