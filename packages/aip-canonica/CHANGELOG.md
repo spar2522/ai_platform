@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **Multi-Layout Extractor Architecture**: Introduced `AxisBankStatementExtractor` supporting both 1-row tabular spreadsheets (XLS) and wrapped multiline block layouts (PDF) with automatic layout detection.
 - **Autonomous Promotion Engine**: Added `aip_canonica.promotion` with OS-level `fcntl.flock` and `threading.RLock` concurrency safety, automated class detection, registration in `registry.py`, and code formatting.
-- **LLM Multi-Layout Evolutionary Synthesis**: Enhanced `StrategyLearner` with evolutionary synthesis via Gemini 3.8 Flash, extending existing single-layout extractors into unified multi-layout classes.
+- **LLM Multi-Layout Evolutionary Synthesis**: Enhanced `StrategyLearner` to support evolutionary synthesis via Gemini 3.8 Flash, extending existing single-layout extractors into unified multi-layout classes.
 - **Decoupled Upstream Git Synchronization**: Added `aip_canonica.publishing` and `scripts/sync_extractors_to_upstream.py` background job to safely test, branch, and push promoted extractors to GitHub.
 - **PDF Vector Parsing & Multi-Page Support**: Added `PdfParser` with multi-page table text extraction and fallback recovery.
 - **Legacy XLS Support**: Added `xlrd` support in `ExcelParser` for parsing legacy `.xls` binary workbooks.
@@ -27,7 +27,7 @@ All notable changes to this project will be documented in this file.
 - **Public API**: Streamlined top-level API to `understand()`, `validate()`, and `parse_document()`.
 
 ### Changed
-- Replaced old workbook-only `understand()` with canonical document returning function.
+- Replaced the old workbook-only `understand()` function with a new canonical document returning function.
 - Refactored legacy `interpreters` architecture to composition-based `extractors` protocol and registry.
 
 ## [0.1.0]
