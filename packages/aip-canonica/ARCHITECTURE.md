@@ -61,45 +61,39 @@ Adapts physical file formats into an in-memory tabular structure (`Workbook`, `S
 - `CanonicalGraph`: An in-memory directed graph supporting outgoing discovery, incoming relationship discovery, and target resolution.
 - `Relationship`: Directed edge with `source_id`, `relation`, `target_id`, `target_type`, and `properties`.
 - Domain Models:
-  - `BankStatement`, `Transaction`
-  - `Invoice`, `InvoiceLine`, `Tax`, `Discount`
-  - `Ledger`, `LedgerEntry`
-  - `InterestCertificate`, `TDSCertificate`, `TDSEntry`
-  - `Party`, `Account`, `DatePeriod`, `Money`
+  - `BankStatement`, `Ledger`, `Invoice`, `InterestCertificate`, `TDSCertificate`
+  - Entities like `Party`, `Tax`, `InvoiceLine`
 
 ### C. Extractor Layer (`aip_canonica.extractors`)
-Converts physical workbooks into canonical documents deterministically.
-- `Extractor` (Protocol): Declares `name`, `document_type`, `matches(workbook)`, and `extract(workbook)`.
-- `ExtractorRegistry`: Maintains known strategies and matches documents before extraction.
-- Built-in extractors:
-  - `AxisBankStatementExtractor`: Multi-layout unified extractor supporting both flat tabular spreadsheets (XLS) and wrapped multiline block layouts (PDF).
-  - `ICICIBankStatementExtractor`: Handles complex multi-column statements with dynamic row offsets, metadata blocks, and summary footers.
-  - `StandardBankStatementExtractor`: Handles standard tabular bank movements across CSV and Excel.
-  - `TabularInvoiceExtractor`: Handles tabular invoices with lines, taxes, and totals.
-  - `TabularLedgerExtractor`: Handles general and sub-ledger movements.
+- **Purpose**: Convert raw documents into canonical models via layout-specific rules.
+- **Key Components**:
+  - `ExtractorRegistry`: Centralized registry for all layout extractors.
+  - `LayoutExtractor`: Base class for document-specific extractors.
+  - **Built-in Extractors**:
+    - `AxisBankStatementExtractor`: Handles multi-layout bank statements.
+    - `StandardInvoiceExtractor`: Processes standard invoice formats.
+    - `TaxCertificateExtractor`: Parses tax-related documents.
 
-### D. Validation Layer (`aip_canonica.validation`)
-- `ValidationResult`, `ValidationIssue`: Structured, inspectable validation reports.
-- `BankStatementValidator`: Reconciles `opening + total_credits - total_debits ≈ closing`.
-- `InvoiceValidator`: Reconciles `lines + taxes - discounts ≈ total`.
-- `LedgerValidator`: Reconciles `opening + debits - credits ≈ closing`.
-- `validate()`: Top-level dispatcher.
+### D. AI Learning Layer (`aip_canonica.ai`)
+- **Purpose**: Automate extractor evolution through AI-assisted analysis.
+- **Key Features**:
+  - `AIAnalyzer`: Queries AI models (e.g., Gemini 3.8 Flash) to identify document patterns.
+  - **Multi-Layout Evolution**: Automatically merges new layouts into existing extractors.
+  - Output: `LearnedStrategy` and synthetic Python code in `.canonica/generated/`
 
-### E. AI Learning Layer (`aip_canonica.learning`)
-- Completely isolated from deterministic runtime execution.
-- `StrategyLearner`: Queries `aip_provider.AI` (e.g. Gemini 3.8 Flash) to inspect document samples and discover anchors and mappings for unknown layouts.
-- Multi-Layout Evolution: When a new document layout variant arrives for an existing institution, the learner evolves the existing extractor into a single unified class supporting both variants.
-- Output: `LearnedStrategy` and synthesized Python code in `.canonica/generated/`.
+### E. Autonomous Promotion Engine (`aip_canonica.promotion`)
+- **Concurrency Safety**: Uses `threading.RLock()` and `fcntl.flock()` for safe deployment.
+- **Code Integration**:
+  - AST-based class identification in generated code.
+  - Automated code placement in `aip_canonica/extractors/<category>/`.
+  - Linting with `ruff` before deployment.
 
-### F. Autonomous Promotion Engine (`aip_canonica.promotion`)
-- Concurrency-Safe Installation: Uses `threading.RLock()` and OS-level `fcntl.flock` on `extractors/.promotion.lock` to guarantee thread safety and process safety across web service workers.
-- AST Class Detection: Automatically identifies the primary `Extractor` class in the synthesized file.
-- Automated Wiring: Copies code into `aip_canonica/extractors/<category>/`, registers imports and instantiations in `registry.py`, and runs `ruff` format and linting.
-
-### G. Upstream Synchronization (`aip_canonica.publishing`)
-- Decoupled Batch Execution: Operates independently from the request processing path via `scripts/sync_extractors_to_upstream.py` (run once or as an hourly cron).
-- Verification Guard: Verifies unit tests pass before attempting git operations.
-- Feature Branch Sync: Automatically branches `canonica/auto-learned-extractors-<timestamp>`, commits, and pushes upstream with pull request links.
+### F. Upstream Synchronization (`aip_canonica.publishing`)
+- **Batch Processing**: Independent execution via `scripts/sync_extractors_to_upstream.py`.
+- **Quality Assurance**:
+  - Unit test verification before git operations.
+  - Git branch creation: `canonica/auto-learned-extractors-<timestamp>`
+  - Pull request automation with upstream repository.
 
 ---
 
@@ -132,3 +126,8 @@ Every entity holds a `Provenance` object referencing:
 - `row`, `column`, `address`: Exact coordinate (e.g. `B145`).
 - `cells`: Complete tuple of `CellLocation` records.
 - Interoperable with `aip_utils.Provenance`.
+
+This tracking enables:
+- **Auditability**: Traceable document origins.
+- **Validation**: Cross-checking data against source coordinates.
+- **Reconciliation**: Resolving discrepancies through source-level analysis.
