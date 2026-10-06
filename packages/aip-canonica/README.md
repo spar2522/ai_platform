@@ -1,50 +1,53 @@
-# `aip-canonica` - Deterministic Document Extraction Engine
+# Canonica: Deterministic Document Extraction Framework
 
 ---
 
 ## 📌 Overview
 
-**`aip-canonica`** is a stateless, zero-dependency document extraction engine built on the **`aip`** platform. It enables deterministic, anchor-based extraction of structured data from financial, banking, and business documents, with optional AI-powered learning for new document layouts.
+Canonica is a stateless, deterministic document extraction framework designed for processing financial and structured data documents. It supports zero AI calls during runtime, relying on structured anchor-based extraction for speed and consistency. AI is used **only for offline learning** to discover new document layouts.
 
 ---
 
-## 📦 What is `aip-canonica`?
+## 📦 What is Canonica?
 
-- **Deterministic Execution**: No AI or LLM queries during runtime.
-- **Provenance Tracking**: Every extracted field and transaction records its source (sheet, row, column).
-- **Graph-Based Representation**: Extracted data is modeled as a graph with full serialization support.
-- **Stateless Architecture**: No databases, file storage, or cloud vaults are managed by the engine.
+Canonica is a framework that:
+
+- **Extracts structured data** from documents (e.g., bank statements, invoices).
+- **Uses anchor-based matching** to dynamically adapt to layout changes.
+- **Records full provenance** for every extracted entity.
+- **Supports deterministic execution** with zero LLM calls during runtime.
+- **Leverages AI for offline learning** to discover and promote new document extractors.
 
 ---
 
-## ❌ What `aip-canonica` Is *Not*
+## ❌ What is NOT Canonica?
 
-- **Not a Document Store**: File persistence is handled by the host application (e.g., S3, GCS).
-- **Not a Rule Engine**: Extractors are implemented via code, not declarative rules.
-- **Not a General-Purpose Parser**: Optimized for structured financial and business documents.
+- **No state management**: It does not store data or manage databases.
+- **No runtime AI**: AI is used **only for learning**, not during execution.
+- **No document layout assumptions**: It adapts dynamically to layout variations.
 
 ---
 
 ## 📄 Supported Document Types
 
-| Type | Description |
-|------|-------------|
-| `BANK_STATEMENT` | Extracts account details, transactions, and balances |
-| `INVOICE` | Parses supplier, customer, itemized line items, and totals |
-| `RECEIPT` | Identifies merchant, date, amount, and itemized purchases |
-| `CUSTOM` | Use `Extractor` protocol to implement custom layouts |
+Canonica currently supports:
+
+- **Bank Statements**
+- **Invoices**
+- **Receipts**
+- **Other structured documents** (via custom extractors)
 
 ---
 
-## 🧰 Public API
+## 📦 Public API
+
+Canonica provides a simple API for extraction and testing:
 
 ```python
-from aip_canonica.models import BankStatement, DocumentType
-from aip_canonica.extractors import register_extractor, Extractor
-from aip_canonica.utils import Workbook
+from aip_canonica.models import BankStatement
+from aip_canonica.extractors import register_extractor
 
-# Example: Custom Bank Statement Extractor
-class CustomBankExtractor(Extractor):
+class CustomBankExtractor:
     @property
     def document_type(self) -> DocumentType:
         return DocumentType.BANK_STATEMENT
@@ -55,152 +58,192 @@ class CustomBankExtractor(Extractor):
 
     def matches(self, workbook: Workbook) -> bool:
         # Structural anchor check
-        return any("custom bank" in str(c.value).lower()
-                   for sheet in workbook.sheets
-                   for row in sheet.rows[:10]
-                   for cell in row.cells)
+        return any("custom bank" in str(c.value).lower() for s in workbook.sheets for r in s.rows[:10] for c in r.cells)
 
-    def extract(self, workbook: Workbook, source_name: str = "") -> BankStatement:
-        # Implement logic to extract fields and transactions
-        return BankStatement(...)
+    def extract(self, workbook: Workbook, *, source_name: str = "") -> BankStatement:
+        # Implementation here
+        ...
 
-# Register with global registry
 register_extractor(CustomBankExtractor())
 ```
 
 ---
 
-## 🔗 Graph-Based Representation
+## 🔗 Graph Representation
 
-Extracted data is modeled as a graph with fully serializable nodes and edges.
+Canonica supports full graph traversal and serialization:
 
 ```python
-doc = understand("s3://vault/2026/icici.xlsx")
+doc = understand("s3://financial-vault/2026/icici_statement.xlsx")
 
-# Query graph nodes
-target_parties = doc.graph.target_nodes(doc.id, relation="holder")
+# Traverse graph
+target_parties = graph.target_nodes(doc.id, relation="holder")
 
-# Serialize graph
-graph_dict = doc.graph.to_dict()
-
-# Retrieve node by ID
-node = doc.graph.get_node("txn_123")
+# Serialize
+graph_dict = graph.to_dict()
 ```
 
 ---
 
 ## 🧾 First-Class Provenance
 
-Every entity tracks its origin in the source document.
+Every extracted entity records its origin with full traceability:
 
 ```python
 txn = doc.transactions[0]
+print(txn.provenance.sheet)    # 'Sheet0'
+print(txn.provenance.row)      # 18
+print(txn.provenance.source)   # 's3://financial-vault/2026/icici_statement.xlsx'
+```
 
-# Source tracking
-print(txn.provenance.source)  # "s3://vault/2026/icici.xlsx"
-print(txn.provenance.sheet)   # "Sheet0"
-print(txn.provenance.row)     # 18
-print(txn.provenance.cells)   # [CellLocation(...), ...]
+Provenance integrates directly with `aip_utils`:
+
+```python
+utils_prov = txn.provenance.to_utils_provenance()
 ```
 
 ---
 
-## ⚙️ Deterministic Execution
+## ⏱️ Deterministic Execution
 
-1. **Applicability Check**: Extractors run `.matches(workbook)` to verify structural anchors.
-2. **Anchor-Based Extraction**: Uses header labels, column headers, and stable patterns.
-3. **Zero AI Calls**: Runs in milliseconds for known document families.
+Canonica ensures fast, deterministic execution through:
+
+1. **Applicability Matching**: Extractors use structural anchors to determine if they can process a document.
+2. **Anchor-Based Extraction**: Extractors adapt to layout changes without relying on fixed positions.
+3. **Zero AI Calls**: Runtime uses pre-registered extractors for sub-millisecond execution.
 
 ---
 
-## 🤖 Optional AI Learning (Offline Only)
+## 🤖 Optional AI Learning
 
-Used to discover new layouts, not for runtime execution.
+AI is used **only for offline learning** to discover new document layouts:
 
 ```text
 Unknown Document Family
          │
          ▼
-  StrategyLearner (Gemini 3.8 Flash)
+  StrategyLearner (uses aip-provider AI / Gemini 3.8 Flash)
          │
-         ├─ New Institution: Generate initial extractor
-         └─ Existing Institution: Evolve to multi-layout class
+         ├─► New institution: Synthesizes initial layout extractor
+         └─► Existing institution: Evolves extractor into unified class
          │
          ▼
   Candidate Extractor (.canonica/generated/)
          │
          ▼
-  Promotion Engine (Thread-safe & Process-safe)
+  Autonomous Promotion Engine (thread-safe & process-safe)
          │
          ▼
-  Promoted to aip_canonica/extractors/<category>
+  Promoted to aip_canonica/extractors/<category> & registered in registry.py
          │
          ▼
-  Hourly Sync Job: Pushes to GitHub
+  Future Documents Execute Deterministically (0 AI calls, <10ms)
+         │
+         ▼
+  Hourly Upstream Sync Job (verifies tests, creates feature branch, pushes to GitHub)
 ```
 
 ---
 
-## 🚀 CLI Commands
+## 🧪 CLI Verification & Autonomous Learning
 
-### 1. Deterministic Verification
+Verify documents or learn new layouts via CLI:
+
 ```bash
+# 1. Deterministic verification (0 AI calls)
 uv run python scripts/verify_canonica.py --file statement.pdf
-```
 
-### 2. AI-Powered Learning
-```bash
+# 2. Autonomous learning with AI (Gemini or Local Ollama)
 uv run python scripts/verify_canonica.py --file statement.pdf --learn --provider gemini
-```
 
-### 3. End-to-End Learning & Promotion
-```bash
+# 3. End-to-end learning, promotion, and registration
 uv run python scripts/verify_canonica.py --file statement.pdf --learn --provider gemini --promote
-```
 
-### 4. Upstream Git Sync
-```bash
+# 4. Upstream Git sync (safe, test-driven)
 uv run python scripts/sync_extractors_to_upstream.py --dry-run
 uv run python scripts/sync_extractors_to_upstream.py --remote origin
 ```
 
 ---
 
-## 📁 Programmatic Promotion & Sync
+## 📁 Programmatic Promotion & Upstream Sync
+
+Promote extractors and sync to upstream safely:
 
 ```python
 from pathlib import Path
 from aip_canonica.promotion import promote_extractor
 from aip_canonica.publishing import sync_to_upstream
 
-# Safely promote a generated extractor
+# Thread-safe promotion
 target_file = promote_extractor(
     source_path=".canonica/generated/axis_bank_statement_extractor.py",
     category="bank",
     auto_register=True,
 )
 
-# Sync promoted extractors to remote
-result = sync_to_upstream(
-    repo_root=Path("."),
-    remote="origin",
-    dry_run=False,
-    force_push=False
-)
+# Sync to upstream
+result = sync_to_upstream(repo_root=Path("."), remote="origin")
 ```
 
 ---
 
-## 🧪 Running Tests
+## 🌐 Stateless Execution
 
-From workspace root:
+Canonica is completely stateless:
+
+- No databases or local file storage.
+- File persistence is managed by the host application (e.g., S3, GCS, Blob storage).
+
+Provenance source is preserved at all levels:
+
+```python
+doc = understand("s3://financial-vault/2026/icici_statement.xlsx")
+print(doc.transactions[0].provenance.source)  # 's3://financial-vault/2026/icici_statement.xlsx'
+```
+
+---
+
+## 🛠️ Adding a New Document Extractor
+
+Implement the `Extractor` protocol:
+
+```python
+from aip_canonica.extractors import Extractor, register_extractor
+from aip_canonica.models import BankStatement, DocumentType, Workbook
+
+class CustomBankExtractor:
+    @property
+    def document_type(self) -> DocumentType:
+        return DocumentType.BANK_STATEMENT
+
+    @property
+    def name(self) -> str:
+        return "custom_bank"
+
+    def matches(self, workbook: Workbook) -> bool:
+        # Structural anchor check
+        return any("custom bank" in str(c.value).lower() for s in workbook.sheets for r in s.rows[:10] for c in r.cells)
+
+    def extract(self, workbook: Workbook, *, source_name: str = "") -> BankStatement:
+        # Implementation here
+        ...
+
+register_extractor(CustomBankExtractor())
+```
+
+---
+
+## 🔍 Running Tests
+
+From the workspace root:
 
 ```bash
 uv sync --all-packages
-uv run pytest packages/aip-canonica
+uv run pytest
 ```
 
-For lint and type-checking:
+For linting and type checking:
 
 ```bash
 uv run ruff check packages/aip-canonica
@@ -209,18 +252,6 @@ uv run mypy --ignore-missing-imports packages/aip-canonica/src
 
 ---
 
-## ✅ Best Practices
+## ✅ Conclusion
 
-- **Extractor Design**: Focus on structural anchors, not fixed row numbers.
-- **Provenance**: Always preserve the source URI for auditability.
-- **Testing**: Use synthetic data and real-world documents to validate extractors.
-
----
-
-## 📌 License
-
-MIT License — See [LICENSE](LICENSE) for details.
-
----
-
-This version improves readability with structured formatting, aligns with the updated AI learning flow, and enhances code examples with clear comments and parameters. It also reorganizes sections for better navigation and consistency.
+Canonica provides a robust, deterministic, and scalable solution for structured document extraction. It supports full provenance tracking, zero AI runtime calls, and AI-driven learning for continuous improvement.
